@@ -1,0 +1,6 @@
+<svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <path d="M4 16C4 12 8 10 16 10C24 10 28 12 28 16V22C28 26 24 28 16 28C8 28 4 26 4 22V16Z" fill="#FACC15"/>
+  <path d="M8 14C8 10 12 8 16 8C20 8 24 10 24 14" stroke="#EAB308" stroke-width="2"/>
+  <circle cx="16" cy="18" r="4" fill="#DC2626"/>
+  <text x="13" y="21" fill="white" font-size="6" font-weight="bold">財</text>
+</svg>
