@@ -122,58 +122,76 @@ export default function AddTab({ viewModel, onClose, onSaveSuccess }: { viewMode
     }
   };
 
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+
   // --- Voice Input Logic ---
-  const handleVoiceInput = () => {
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      alert("Trình duyệt của bạn không hỗ trợ nhận diện giọng nói.");
+  const handleVoiceInput = async () => {
+    if (status === 'listening') {
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+        mediaRecorderRef.current.stop();
+      }
       return;
     }
 
-    const recognition = new SpeechRecognition();
-    recognition.lang = language === 'vi' ? 'vi-VN' : 'en-US';
-    recognition.interimResults = false;
-    recognition.maxAlternatives = 1;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream);
+      audioChunksRef.current = [];
 
-    recognition.onstart = () => {
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunksRef.current.push(e.data);
+      };
+
+      recorder.onstop = async () => {
+        setStatus('processing');
+        const audioBlob = new Blob(audioChunksRef.current, { type: recorder.mimeType || 'audio/webm' });
+        const reader = new FileReader();
+        reader.readAsDataURL(audioBlob);
+        reader.onloadend = async () => {
+          const base64Audio = (reader.result as string).split(',')[1];
+          await parseAudioWithGemini(base64Audio, audioBlob.type);
+        };
+        stream.getTracks().forEach(track => track.stop());
+      };
+
+      recorder.start();
+      mediaRecorderRef.current = recorder;
       setStatus('listening');
-    };
-
-    recognition.onresult = async (event: any) => {
-      const text = event.results[0][0].transcript;
-      setStatus('processing');
-      await parseWithGemini(text);
-    };
-
-    recognition.onerror = (event: any) => {
-      console.error(event.error);
-      setStatus('error');
-      setErrorMsg(t.voiceError);
-      setTimeout(() => setStatus('idle'), 3000);
-    };
-
-    recognition.onend = () => {
-      if (status === 'listening') setStatus('idle');
-    };
-
-    recognition.start();
+    } catch (err) {
+      console.error(err);
+      alert(language === 'vi' ? "Không thể truy cập micro. Vui lòng cấp quyền." : "Cannot access microphone. Please grant permission.");
+      setStatus('idle');
+    }
   };
 
-  const parseWithGemini = async (text: string) => {
+  const parseAudioWithGemini = async (base64Data: string, mimeType: string) => {
     try {
       const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
       const categoryNames = categories.map(c => c.name).join(', ');
       
       const response = await ai.models.generateContent({
         model: "gemini-3-flash-preview",
-        contents: `Phân tích câu sau và trích xuất thông tin giao dịch tài chính: "${text}". 
-        Trả về JSON với các trường: 
-        - amount (số tiền, ví dụ 45000)
-        - category (tên danh mục, chọn từ danh sách sau: [${categoryNames}]. Nếu không chắc chọn 'Khác')
-        - note (ghi chú ngắn gọn)
-        - type (loại giao dịch: 'expense' hoặc 'income'. Mặc định là 'expense' nếu không rõ)
-        
-        Ví dụ: "Cà phê 45k" -> {"amount": 45000, "category": "Ăn uống", "note": "Cà phê", "type": "expense"}`,
+        contents: {
+          parts: [
+            {
+              inlineData: {
+                data: base64Data,
+                mimeType: mimeType || 'audio/webm'
+              }
+            },
+            {
+              text: `Nghe đoạn âm thanh này và trích xuất thông tin giao dịch tài chính.
+              Trả về JSON với các trường: 
+              - amount (số tiền, ví dụ 45000)
+              - category (tên danh mục, chọn từ danh sách sau: [${categoryNames}]. Nếu không chắc chọn 'Khác')
+              - note (ghi chú ngắn gọn)
+              - type (loại giao dịch: 'expense' hoặc 'income'. Mặc định là 'expense' nếu không rõ)
+              
+              Ví dụ: "Cà phê 45k" -> {"amount": 45000, "category": "Ăn uống", "note": "Cà phê", "type": "expense"}`
+            }
+          ]
+        },
         config: {
           responseMimeType: "application/json",
           responseSchema: {
@@ -239,7 +257,7 @@ export default function AddTab({ viewModel, onClose, onSaveSuccess }: { viewMode
       const categoryNames = categories.map(c => c.name).join(', ');
 
       const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash-image",
+        model: "gemini-3-flash-preview",
         contents: {
           parts: [
             {
@@ -376,7 +394,7 @@ export default function AddTab({ viewModel, onClose, onSaveSuccess }: { viewMode
                       options={sortedAccounts.map(acc => ({
                         value: acc.id,
                         label: translateName(acc.name),
-                        icon: getAccountIcon(acc.icon)
+                        icon: <span className="text-blue-500">{getAccountIcon(acc.icon)}</span>
                       }))}
                     />
                   </div>
@@ -416,11 +434,11 @@ export default function AddTab({ viewModel, onClose, onSaveSuccess }: { viewMode
                     onChange={(val) => setCategory(val)}
                     placeholder={t.selectCategory}
                     options={parentCategories.flatMap(parent => [
-                      { value: `group-${parent.id}`, label: translateName(parent.name), isGroup: true },
+                      { value: `group-${parent.id}`, label: translateName(parent.name), isGroup: true, icon: <span className={type === 'expense' ? 'text-red-500' : 'text-green-500'}>{getCategoryIcon(parent.icon)}</span> },
                       ...sortCategories(filteredCategories.filter(c => c.parent_id === parent.id)).map(child => ({
                         value: child.name,
                         label: translateName(child.name),
-                        icon: getCategoryIcon(child.icon)
+                        icon: <span className={type === 'expense' ? 'text-red-500' : 'text-green-500'}>{getCategoryIcon(child.icon)}</span>
                       }))
                     ])}
                   />

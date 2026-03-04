@@ -370,7 +370,7 @@ export default function HistoryTab({ viewModel }: { viewModel: ReturnType<typeof
                         options={accounts.map(acc => ({
                           value: acc.id,
                           label: translateName(acc.name),
-                          icon: getAccountIcon(acc.icon)
+                          icon: <span className="text-blue-500">{getAccountIcon(acc.icon)}</span>
                         }))}
                       />
                     </div>
@@ -411,7 +411,7 @@ export default function HistoryTab({ viewModel }: { viewModel: ReturnType<typeof
                       options={sortCategories(categories.filter(c => c.type === editingTx.type && c.parent_id !== null)).map(c => ({
                         value: c.name,
                         label: translateName(c.name),
-                        icon: getCategoryIcon(c.icon)
+                        icon: <span className={editingTx.type === 'expense' ? 'text-red-500' : 'text-green-500'}>{getCategoryIcon(c.icon)}</span>
                       }))}
                     />
                   </div>

@@ -91,8 +91,9 @@ if (userVersion < 2) {
   // Insert default accounts
   const insertAccount = db.prepare('INSERT OR IGNORE INTO accounts (name, icon, balance, is_default) VALUES (?, ?, ?, ?)');
   insertAccount.run('Tiền mặt', 'Wallet', 0, 1);
-  insertAccount.run('Ngân hàng', 'Landmark', 0, 0);
+  insertAccount.run('Tài khoản ngân hàng', 'Landmark', 0, 0);
   insertAccount.run('Ví điện tử', 'Smartphone', 0, 0);
+  insertAccount.run('Đầu tư', 'TrendingUp', 0, 0);
 
   // Insert default categories
   const insertCategory = db.prepare('INSERT OR IGNORE INTO categories (type, parent_id, name, icon, is_default) VALUES (?, ?, ?, ?, ?)');
@@ -101,14 +102,14 @@ if (userVersion < 2) {
   const needsInfo = insertCategory.run('expense', null, 'Nhu cầu thiết yếu', 'ShoppingCart', 1);
   const needsId = needsInfo.lastInsertRowid;
   insertCategory.run('expense', needsId, 'Ăn uống', 'Utensils', 1);
-  insertCategory.run('expense', needsId, 'Hóa đơn', 'Receipt', 1);
-  insertCategory.run('expense', needsId, 'Nhà ở', 'Home', 1);
-  insertCategory.run('expense', needsId, 'Di chuyển', 'Car', 1);
+  insertCategory.run('expense', needsId, 'Hóa đơn (Điện, nước, internet...)', 'Receipt', 1);
+  insertCategory.run('expense', needsId, 'Nhà ở (Tiền thuê nhà, phí dịch vụ...)', 'Home', 1);
+  insertCategory.run('expense', needsId, 'Di chuyển (Xăng xe, vé tàu xe...)', 'Car', 1);
   insertCategory.run('expense', needsId, 'Sức khỏe', 'HeartPulse', 1);
   insertCategory.run('expense', needsId, 'Khác', 'MoreHorizontal', 1);
 
   // Expense - Mong muốn
-  const wantsInfo = insertCategory.run('expense', null, 'Mong muốn', 'Gift', 1);
+  const wantsInfo = insertCategory.run('expense', null, 'Mong muốn', 'Star', 1);
   const wantsId = wantsInfo.lastInsertRowid;
   insertCategory.run('expense', wantsId, 'Giải trí', 'Gamepad2', 1);
   insertCategory.run('expense', wantsId, 'Thời trang', 'Shirt', 1);
@@ -121,10 +122,10 @@ if (userVersion < 2) {
   insertCategory.run('expense', wantsId, 'Khác', 'MoreHorizontal', 1);
 
   // Expense - Phát triển bản thân
-  const devInfo = insertCategory.run('expense', null, 'Phát triển bản thân', 'BookOpen', 1);
+  const devInfo = insertCategory.run('expense', null, 'Phát triển bản thân', 'TrendingUp', 1);
   const devId = devInfo.lastInsertRowid;
   insertCategory.run('expense', devId, 'Học tập', 'GraduationCap', 1);
-  insertCategory.run('expense', devId, 'Đồ tiện ích', 'Laptop', 1);
+  insertCategory.run('expense', devId, 'Đồ tiện ích (Sách vở, công cụ học tập/làm việc)', 'Laptop', 1);
   insertCategory.run('expense', devId, 'Khác', 'MoreHorizontal', 1);
 
   // Expense - Chi phí khác
@@ -135,12 +136,12 @@ if (userVersion < 2) {
   insertCategory.run('expense', extraId, 'Khác', 'MoreHorizontal', 1);
 
   // Income
-  const incomeInfo = insertCategory.run('income', null, 'Thu nhập', 'ArrowDownRight', 1);
+  const incomeInfo = insertCategory.run('income', null, 'Thu nhập', 'Wallet', 1);
   const incomeId = incomeInfo.lastInsertRowid;
   insertCategory.run('income', incomeId, 'Lương', 'Banknote', 1);
   insertCategory.run('income', incomeId, 'Thưởng', 'Award', 1);
   insertCategory.run('income', incomeId, 'Bán hàng', 'Store', 1);
-  insertCategory.run('income', incomeId, 'Khác', 'MoreHorizontal', 1);
+  insertCategory.run('income', incomeId, 'Cho tặng', 'Gift', 1);
 
   db.pragma('user_version = 2');
 }

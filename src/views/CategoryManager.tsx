@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useFinanceViewModel } from '../viewmodels/useFinanceViewModel';
-import { ArrowLeft, Plus, Edit2, Trash2, X, Check } from 'lucide-react';
+import { ArrowLeft, Plus, Edit2, Trash2, X, Check, MoreHorizontal } from 'lucide-react';
 import { Category } from '../models/types';
 import { api } from '../services/api';
 import { translations } from '../utils/translations';
@@ -137,7 +137,9 @@ export default function CategoryManager({ viewModel, onClose }: { viewModel: Ret
               ) : (
                 <>
                   <div className="flex items-center">
-                    <span className="mr-3 text-gray-400"><MoreHorizontal size={16} /></span>
+                    <span className={`mr-3 ${activeTab === 'income' ? 'text-green-500' : 'text-red-500'}`}>
+                      {getCategoryIcon(parent.icon)}
+                    </span>
                     <span>{translateName(parent.name)}</span>
                   </div>
                   <div className="flex items-center gap-1">
@@ -184,7 +186,9 @@ export default function CategoryManager({ viewModel, onClose }: { viewModel: Ret
                   ) : (
                     <>
                       <div className="flex items-center pl-2">
-                        <span className="mr-3 text-gray-400"><MoreHorizontal size={16} /></span>
+                        <span className={`mr-3 ${activeTab === 'income' ? 'text-green-500' : 'text-red-500'}`}>
+                          {getCategoryIcon(child.icon)}
+                        </span>
                         <span className="text-gray-700">{translateName(child.name)}</span>
                       </div>
                       <div className="flex gap-2">

@@ -14,45 +14,52 @@ let currentUser: User | null = null;
 
 // Initialize default data if empty
 const initializeDefaults = async () => {
+  const version = await getItem('data_version');
+  if (version !== 'v2') {
+    await setItem('categories', []);
+    await setItem('accounts', []);
+    await setItem('data_version', 'v2');
+  }
+
   const cats = await getLocalArray('categories');
   if (cats.length === 0) {
     await setItem('categories', [
       // Income main
       { id: 1, name: 'Thu nhập', type: 'income', icon: 'Wallet', parent_id: null, is_default: true },
       // Income sub
-      { id: 2, name: 'Lương', type: 'income', icon: 'Briefcase', parent_id: 1, is_default: true },
-      { id: 3, name: 'Thưởng', type: 'income', icon: 'Gift', parent_id: 1, is_default: true },
-      { id: 4, name: 'Bán hàng', type: 'income', icon: 'ShoppingBag', parent_id: 1, is_default: true },
-      { id: 5, name: 'Cho tặng', type: 'income', icon: 'Heart', parent_id: 1, is_default: true },
+      { id: 2, name: 'Lương', type: 'income', icon: 'Banknote', parent_id: 1, is_default: true },
+      { id: 3, name: 'Thưởng', type: 'income', icon: 'Award', parent_id: 1, is_default: true },
+      { id: 4, name: 'Bán hàng', type: 'income', icon: 'Store', parent_id: 1, is_default: true },
+      { id: 5, name: 'Cho tặng', type: 'income', icon: 'Gift', parent_id: 1, is_default: true },
       
       // Expense main
-      { id: 6, name: 'Nhu cầu thiết yếu', type: 'expense', icon: 'Home', parent_id: null, is_default: true },
+      { id: 6, name: 'Nhu cầu thiết yếu', type: 'expense', icon: 'ShoppingCart', parent_id: null, is_default: true },
       { id: 7, name: 'Mong muốn', type: 'expense', icon: 'Star', parent_id: null, is_default: true },
       { id: 8, name: 'Phát triển bản thân', type: 'expense', icon: 'TrendingUp', parent_id: null, is_default: true },
       { id: 9, name: 'Chi phí khác', type: 'expense', icon: 'MoreHorizontal', parent_id: null, is_default: true },
       
       // Nhu cầu thiết yếu sub
       { id: 10, name: 'Ăn uống', type: 'expense', icon: 'Utensils', parent_id: 6, is_default: true },
-      { id: 11, name: 'Hóa đơn', type: 'expense', icon: 'Receipt', parent_id: 6, is_default: true },
-      { id: 12, name: 'Nhà ở', type: 'expense', icon: 'Home', parent_id: 6, is_default: true },
-      { id: 13, name: 'Di chuyển', type: 'expense', icon: 'Car', parent_id: 6, is_default: true },
+      { id: 11, name: 'Hóa đơn (Điện, nước, internet...)', type: 'expense', icon: 'Receipt', parent_id: 6, is_default: true },
+      { id: 12, name: 'Nhà ở (Tiền thuê nhà, phí dịch vụ...)', type: 'expense', icon: 'Home', parent_id: 6, is_default: true },
+      { id: 13, name: 'Di chuyển (Xăng xe, vé tàu xe...)', type: 'expense', icon: 'Car', parent_id: 6, is_default: true },
       { id: 14, name: 'Sức khỏe', type: 'expense', icon: 'HeartPulse', parent_id: 6, is_default: true },
       { id: 15, name: 'Khác', type: 'expense', icon: 'MoreHorizontal', parent_id: 6, is_default: true },
       
       // Mong muốn sub
-      { id: 16, name: 'Giải trí', type: 'expense', icon: 'Film', parent_id: 7, is_default: true },
+      { id: 16, name: 'Giải trí', type: 'expense', icon: 'Gamepad2', parent_id: 7, is_default: true },
       { id: 17, name: 'Thời trang', type: 'expense', icon: 'Shirt', parent_id: 7, is_default: true },
-      { id: 18, name: 'Làm đẹp', type: 'expense', icon: 'Scissors', parent_id: 7, is_default: true },
-      { id: 19, name: 'Liên hoan', type: 'expense', icon: 'Users', parent_id: 7, is_default: true },
+      { id: 18, name: 'Làm đẹp', type: 'expense', icon: 'Sparkles', parent_id: 7, is_default: true },
+      { id: 19, name: 'Liên hoan', type: 'expense', icon: 'PartyPopper', parent_id: 7, is_default: true },
       { id: 20, name: 'Du lịch', type: 'expense', icon: 'Plane', parent_id: 7, is_default: true },
       { id: 21, name: 'Quà tặng', type: 'expense', icon: 'Gift', parent_id: 7, is_default: true },
-      { id: 22, name: 'Hiếu hỉ', type: 'expense', icon: 'Heart', parent_id: 7, is_default: true },
+      { id: 22, name: 'Hiếu hỉ', type: 'expense', icon: 'HeartHandshake', parent_id: 7, is_default: true },
       { id: 23, name: 'Bảo hiểm', type: 'expense', icon: 'Shield', parent_id: 7, is_default: true },
       { id: 24, name: 'Khác', type: 'expense', icon: 'MoreHorizontal', parent_id: 7, is_default: true },
       
       // Phát triển bản thân sub
-      { id: 25, name: 'Học tập', type: 'expense', icon: 'BookOpen', parent_id: 8, is_default: true },
-      { id: 26, name: 'Đồ tiện ích', type: 'expense', icon: 'Laptop', parent_id: 8, is_default: true },
+      { id: 25, name: 'Học tập', type: 'expense', icon: 'GraduationCap', parent_id: 8, is_default: true },
+      { id: 26, name: 'Đồ tiện ích (Sách vở, công cụ học tập/làm việc)', type: 'expense', icon: 'Laptop', parent_id: 8, is_default: true },
       { id: 27, name: 'Khác', type: 'expense', icon: 'MoreHorizontal', parent_id: 8, is_default: true },
       
       // Chi phí khác sub

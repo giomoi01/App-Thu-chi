@@ -43,7 +43,7 @@ export default function CustomSelect({ value, onChange, options, placeholder, cl
         <div className="flex items-center gap-2 truncate">
           {selectedOption ? (
             <>
-              {selectedOption.icon && <span className="text-gray-500">{selectedOption.icon}</span>}
+              {selectedOption.icon && <span className="flex-shrink-0 scale-90">{selectedOption.icon}</span>}
               <span className="truncate">{selectedOption.label}</span>
             </>
           ) : (
@@ -59,14 +59,14 @@ export default function CustomSelect({ value, onChange, options, placeholder, cl
             if (opt.isGroup) {
               return (
                 <div key={`group-${index}`} className="px-3 py-2 text-xs font-semibold text-gray-500 bg-gray-50 uppercase tracking-wider sticky top-0 z-10 flex items-center gap-2">
-                  {opt.icon && <span>{opt.icon}</span>}
+                  {opt.icon && <span className="flex-shrink-0 scale-75">{opt.icon}</span>}
                   {opt.label}
                 </div>
               );
             }
             return (
               <button
-                key={`opt-${opt.value}`}
+                key={`opt-${opt.value}-${index}`}
                 type="button"
                 disabled={opt.disabled}
                 onClick={() => {
@@ -75,7 +75,7 @@ export default function CustomSelect({ value, onChange, options, placeholder, cl
                 }}
                 className={`w-full text-left px-3 py-2 text-sm flex items-center gap-2 hover:bg-red-50 transition-colors ${opt.disabled ? 'opacity-50 cursor-not-allowed' : ''} ${value === opt.value ? 'bg-red-50 text-red-600 font-medium' : 'text-gray-700'}`}
               >
-                {opt.icon && <span className={`${value === opt.value ? 'text-red-500' : 'text-gray-400'}`}>{opt.icon}</span>}
+                {opt.icon && <span className="flex-shrink-0 scale-90">{opt.icon}</span>}
                 <span className="truncate">{opt.label}</span>
               </button>
             );

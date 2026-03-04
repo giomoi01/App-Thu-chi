@@ -19,20 +19,37 @@ export default function AuthView({ viewModel }: { viewModel: ReturnType<typeof u
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!email.trim() || !password.trim()) {
+      setError(language === 'vi' ? 'Vui lòng nhập đầy đủ email và mật khẩu' : 'Please enter email and password');
+      return;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email.trim())) {
+      setError(language === 'vi' ? 'Định dạng email không hợp lệ' : 'Invalid email format');
+      return;
+    }
+
     setLoading(true);
     setError(null);
 
-    let success = false;
-    if (isLogin) {
-      success = await login({ email, password });
-    } else {
-      success = await register({ email, password, full_name: fullName });
-    }
+    try {
+      let success = false;
+      if (isLogin) {
+        success = await login({ email, password });
+      } else {
+        success = await register({ email, password, full_name: fullName });
+      }
 
-    if (!success) {
-      setError(isLogin ? (language === 'vi' ? 'Đăng nhập thất bại' : 'Login failed') : (language === 'vi' ? 'Đăng ký thất bại' : 'Registration failed'));
+      if (!success) {
+        setError(isLogin ? (language === 'vi' ? 'Email hoặc mật khẩu không đúng' : 'Incorrect email or password') : (language === 'vi' ? 'Đăng ký thất bại' : 'Registration failed'));
+      }
+    } catch (err: any) {
+      setError(err.message || (isLogin ? (language === 'vi' ? 'Email hoặc mật khẩu không đúng' : 'Incorrect email or password') : (language === 'vi' ? 'Đăng ký thất bại' : 'Registration failed')));
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const handleSocialLogin = async (provider: string) => {

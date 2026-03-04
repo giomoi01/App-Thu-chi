@@ -550,7 +550,7 @@ export default function BudgetTab({ viewModel }: { viewModel: ReturnType<typeof 
                     options={sortCategories(categories.filter(c => c.type === 'expense' && c.parent_id !== null)).map(c => ({
                       value: c.name,
                       label: translateName(c.name),
-                      icon: getCategoryIcon(c.icon)
+                      icon: <span className="text-red-500">{getCategoryIcon(c.icon)}</span>
                     }))}
                   />
                 </div>
