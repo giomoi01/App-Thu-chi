@@ -46,7 +46,8 @@ export function useFinanceViewModel() {
   
   const translateName = useCallback((name: string) => {
     const t = translations[language] || translations['vi'];
-    return (t as any)[name] || name;
+    const trimmedName = name.trim();
+    return (t as any)[trimmedName] || name;
   }, [language]);
 
   const parseDateValue = useCallback((dateString: string) => {

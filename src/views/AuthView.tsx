@@ -14,8 +14,8 @@ export default function AuthView({ viewModel }: { viewModel: ReturnType<typeof u
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const language = getSetting('language', 'vi') as 'vi' | 'en';
-  const t = translations[language];
+  const language = getSetting('language', 'vi');
+  const t = translations[language] || translations['vi'];
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

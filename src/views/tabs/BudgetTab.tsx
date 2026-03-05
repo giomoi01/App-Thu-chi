@@ -7,9 +7,13 @@ import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 import { getCategoryIcon } from '../../utils/icons';
 import CustomSelect from '../../components/CustomSelect';
 
-export default function BudgetTab({ viewModel }: { viewModel: ReturnType<typeof useFinanceViewModel> }) {
+export default function BudgetTab({ viewModel, initialTab = 'budgets' }: { viewModel: ReturnType<typeof useFinanceViewModel>, initialTab?: 'budgets' | 'goals' }) {
   const { budgets, goals, transactions, loading, getSetting, addBudget, updateBudget, deleteBudget, addGoal, updateGoal, deleteGoal, updateGoalAmount, categories, formatCurrency, formatDate, translateName } = viewModel;
-  const [activeTab, setActiveTab] = useState<'budgets' | 'goals'>('budgets');
+  const [activeTab, setActiveTab] = useState<'budgets' | 'goals'>(initialTab);
+
+  useEffect(() => {
+    setActiveTab(initialTab);
+  }, [initialTab]);
 
   // Modals
   const [showAddBudget, setShowAddBudget] = useState(false);
@@ -33,10 +37,10 @@ export default function BudgetTab({ viewModel }: { viewModel: ReturnType<typeof 
 
   const [status, setStatus] = useState<'idle' | 'success' | 'error'>('idle');
 
-  const language = getSetting('language', 'vi') as 'vi' | 'en';
+  const language = getSetting('language', 'vi');
   const currency = getSetting('currency', 'VND');
   const dateFormat = getSetting('date_format', 'dd/MM/yyyy');
-  const t = translations[language];
+  const t = translations[language] || translations['vi'];
 
   const getSpentAmount = (category: string, month: string) => {
     return transactions

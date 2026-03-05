@@ -13,9 +13,15 @@ export default function MainLayout({ viewModel }: { viewModel: ReturnType<typeof
   const [activeTab, setActiveTab] = useState(0);
   const [showSettings, setShowSettings] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [budgetSubTab, setBudgetSubTab] = useState<'budgets' | 'goals'>('budgets');
 
-  const language = viewModel.getSetting('language', 'vi') as 'vi' | 'en';
-  const t = translations[language];
+  const language = viewModel.getSetting('language', 'vi');
+  const t = translations[language] || translations['vi'];
+
+  const handleNavigateToBudget = (subTab: 'budgets' | 'goals') => {
+    setBudgetSubTab(subTab);
+    setActiveTab(3);
+  };
 
   const tabs = [
     { id: 0, label: t.tabOverview, icon: Home, component: OverviewTab },
@@ -64,7 +70,12 @@ export default function MainLayout({ viewModel }: { viewModel: ReturnType<typeof
 
       {/* Main Content Area */}
       <main className="flex-1 overflow-y-auto pb-20">
-        <ActiveComponent viewModel={viewModel} onTabChange={setActiveTab} />
+        <ActiveComponent 
+          viewModel={viewModel} 
+          onTabChange={setActiveTab} 
+          onNavigateToBudget={handleNavigateToBudget}
+          initialTab={budgetSubTab}
+        />
       </main>
 
       {/* Bottom Navigation */}

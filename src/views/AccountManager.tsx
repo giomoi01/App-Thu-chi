@@ -17,8 +17,8 @@ export default function AccountManager({ viewModel, onClose }: { viewModel: Retu
   const [newBalance, setNewBalance] = useState(0);
   const [newIcon, setNewIcon] = useState('Wallet');
 
-  const language = getSetting('language', 'vi') as 'vi' | 'en';
-  const t = translations[language];
+  const language = getSetting('language', 'vi');
+  const t = translations[language] || translations['vi'];
 
   const handleEdit = (account: Account) => {
     setEditingId(account.id);

@@ -6,7 +6,10 @@ import {
   ArrowDownRight, Banknote, Award, Store, Wallet, Landmark, Smartphone,
   CreditCard, PiggyBank, Coins, Coffee, Pizza, Bus, Bike, Briefcase,
   Camera, Music, Tv, Book, PenTool, Scissors, Dumbbell, Stethoscope,
-  Baby, Dog, Cat, TreePine, Cloud, Sun, Moon, Star, Heart, Film, ShoppingBag
+  Baby, Dog, Cat, TreePine, Cloud, Sun, Moon, Star, Heart, Film, ShoppingBag,
+  Zap, Droplets, Wifi, Flame, Footprints, Key, Armchair, Wrench, ClipboardList,
+  Fuel, Settings, Ticket, ParkingCircle, Pill, Flower2, UserPlus, UtensilsCrossed,
+  Croissant, Soup
 } from 'lucide-react';
 
 export const CATEGORY_ICONS: Record<string, React.ReactNode> = {
@@ -58,7 +61,28 @@ export const CATEGORY_ICONS: Record<string, React.ReactNode> = {
   Heart: <Heart size={20} />,
   Film: <Film size={20} />,
   ShoppingBag: <ShoppingBag size={20} />,
-  Wallet: <Wallet size={20} />
+  Wallet: <Wallet size={20} />,
+  Zap: <Zap size={20} />,
+  Droplets: <Droplets size={20} />,
+  Wifi: <Wifi size={20} />,
+  Flame: <Flame size={20} />,
+  Smartphone: <Smartphone size={20} />,
+  Coins: <Coins size={20} />,
+  Footprints: <Footprints size={20} />,
+  Key: <Key size={20} />,
+  Armchair: <Armchair size={20} />,
+  Wrench: <Wrench size={20} />,
+  ClipboardList: <ClipboardList size={20} />,
+  Fuel: <Fuel size={20} />,
+  Settings: <Settings size={20} />,
+  Ticket: <Ticket size={20} />,
+  ParkingCircle: <ParkingCircle size={20} />,
+  Pill: <Pill size={20} />,
+  Flower2: <Flower2 size={20} />,
+  UserPlus: <UserPlus size={20} />,
+  UtensilsCrossed: <UtensilsCrossed size={20} />,
+  Croissant: <Croissant size={20} />,
+  Soup: <Soup size={20} />
 };
 
 export const ACCOUNT_ICONS: Record<string, React.ReactNode> = {

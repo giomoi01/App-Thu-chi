@@ -17,8 +17,8 @@ export default function CategoryManager({ viewModel, onClose }: { viewModel: Ret
   const [newIcon, setNewIcon] = useState('MoreHorizontal');
   const [newParentId, setNewParentId] = useState<number | null>(null);
 
-  const language = getSetting('language', 'vi') as 'vi' | 'en';
-  const t = translations[language];
+  const language = getSetting('language', 'vi');
+  const t = translations[language] || translations['vi'];
 
   const filteredCategories = categories.filter(c => c.type === activeTab);
   
@@ -218,6 +218,21 @@ export default function CategoryManager({ viewModel, onClose }: { viewModel: Ret
             <h3 className="text-lg font-bold text-gray-800 mb-4">
               {newParentId ? t.addCatChild : t.addCatGroupTitle}
             </h3>
+            
+            <div className="mb-4">
+              <label className="block text-xs font-medium text-gray-500 uppercase mb-2">{t.parentCategory || 'Nhóm cha'}</label>
+              <select
+                value={newParentId || ''}
+                onChange={(e) => setNewParentId(e.target.value ? Number(e.target.value) : null)}
+                className="w-full border border-gray-300 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500 bg-white"
+              >
+                <option value="">{t.none || 'Không có (Tạo nhóm mới)'}</option>
+                {parentCategories.map(cat => (
+                  <option key={cat.id} value={cat.id}>{translateName(cat.name)}</option>
+                ))}
+              </select>
+            </div>
+
             <input
               type="text"
               placeholder={t.catName}

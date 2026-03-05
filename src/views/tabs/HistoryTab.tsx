@@ -1,7 +1,7 @@
 import { useFinanceViewModel } from '../../viewmodels/useFinanceViewModel';
 import { format, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear, isWithinInterval } from 'date-fns';
 import { vi } from 'date-fns/locale';
-import { ArrowDownRight, ArrowUpRight, Search, List, X, Trash2, Save, ChevronDown, Calendar } from 'lucide-react';
+import { ArrowDownRight, ArrowUpRight, Search, List, X, Trash2, Save, ChevronDown, Calendar, ArrowUpDown } from 'lucide-react';
 import React, { useState, useMemo, useEffect } from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } from 'recharts';
 import { translations } from '../../utils/translations';
@@ -17,6 +17,7 @@ export default function HistoryTab({ viewModel }: { viewModel: ReturnType<typeof
   const { transactions, loading, getSetting, updateTransaction, deleteTransaction, categories, accounts, formatCurrency, formatDate, translateName } = viewModel;
   const [filter, setFilter] = useState<'all' | 'income' | 'expense'>('all');
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('all');
+  const [sortBy, setSortBy] = useState<'date_desc' | 'id_desc'>('date_desc');
   const [search, setSearch] = useState('');
   
   const [customStart, setCustomStart] = useState('');
@@ -27,10 +28,10 @@ export default function HistoryTab({ viewModel }: { viewModel: ReturnType<typeof
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [displayLimit, setDisplayLimit] = useState(50);
 
-  const language = getSetting('language', 'vi') as 'vi' | 'en';
+  const language = getSetting('language', 'vi');
   const currency = getSetting('currency', 'VND');
   const dateFormat = getSetting('date_format', 'dd/MM/yyyy');
-  const t = translations[language];
+  const t = translations[language] || translations['vi'];
 
   const sortCategories = (cats: any[]) => {
     return [...cats].sort((a, b) => {
@@ -81,7 +82,7 @@ export default function HistoryTab({ viewModel }: { viewModel: ReturnType<typeof
   };
 
   const filteredTransactions = useMemo(() => {
-    return transactions.filter((tx) => {
+    const filtered = transactions.filter((tx) => {
       // Type filter
       if (filter !== 'all' && tx.type !== filter) return false;
       
@@ -111,7 +112,19 @@ export default function HistoryTab({ viewModel }: { viewModel: ReturnType<typeof
       
       return true;
     });
-  }, [transactions, filter, search, timeFilter, customStart, customEnd]);
+
+    // Sort
+    return filtered.sort((a, b) => {
+      if (sortBy === 'date_desc') {
+        const dateA = new Date(a.date).getTime();
+        const dateB = new Date(b.date).getTime();
+        if (dateB !== dateA) return dateB - dateA;
+        return b.id - a.id;
+      } else {
+        return b.id - a.id;
+      }
+    });
+  }, [transactions, filter, search, timeFilter, customStart, customEnd, sortBy]);
 
   const displayedTransactions = useMemo(() => filteredTransactions.slice(0, displayLimit), [filteredTransactions, displayLimit]);
 
@@ -172,7 +185,7 @@ export default function HistoryTab({ viewModel }: { viewModel: ReturnType<typeof
 
   return (
     <div className="p-4 space-y-4 relative min-h-full">
-      {/* Search and Filter */}
+      {/* Search and Filter Row 1 */}
       <div className="flex space-x-2">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
@@ -184,19 +197,42 @@ export default function HistoryTab({ viewModel }: { viewModel: ReturnType<typeof
             className="w-full pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500/50 transition-shadow"
           />
         </div>
-        <select
-          value={timeFilter}
-          onChange={(e) => setTimeFilter(e.target.value as TimeFilter)}
-          className="bg-white border border-gray-200 text-gray-700 text-sm rounded-xl focus:ring-red-500 focus:border-red-500 block p-2 shadow-sm"
-        >
-          <option value="all">{t.all}</option>
-          <option value="today">{t.today}</option>
-          <option value="week">{t.thisWeek}</option>
-          <option value="month">{t.thisMonth}</option>
-          <option value="quarter">{t.thisQuarter}</option>
-          <option value="year">{t.thisYear}</option>
-          <option value="custom">{t.customRange}</option>
-        </select>
+      </div>
+
+      {/* Filter Row 2 */}
+      <div className="flex space-x-2">
+        <div className="flex-1 relative">
+          <select
+            value={timeFilter}
+            onChange={(e) => setTimeFilter(e.target.value as TimeFilter)}
+            className="w-full bg-white border border-gray-200 text-gray-700 text-sm rounded-xl focus:ring-red-500 focus:border-red-500 block p-2 shadow-sm appearance-none"
+          >
+            <option value="all">{t.all}</option>
+            <option value="today">{t.today}</option>
+            <option value="week">{t.thisWeek}</option>
+            <option value="month">{t.thisMonth}</option>
+            <option value="quarter">{t.thisQuarter}</option>
+            <option value="year">{t.thisYear}</option>
+            <option value="custom">{t.customRange}</option>
+          </select>
+          <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
+            <Calendar size={14} />
+          </div>
+        </div>
+
+        <div className="flex-1 relative">
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as 'date_desc' | 'id_desc')}
+            className="w-full bg-white border border-gray-200 text-gray-700 text-sm rounded-xl focus:ring-red-500 focus:border-red-500 block p-2 shadow-sm appearance-none"
+          >
+            <option value="date_desc">{t.dateNewest}</option>
+            <option value="id_desc">{t.newestAdded}</option>
+          </select>
+          <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
+            <ArrowUpDown size={14} />
+          </div>
+        </div>
       </div>
 
       {/* Custom Date Range Inputs */}

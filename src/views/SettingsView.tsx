@@ -10,12 +10,12 @@ export default function SettingsView({ viewModel, onClose }: { viewModel: Return
   const { getSetting, updateSetting, user, logout } = viewModel;
   const [activeSection, setActiveSection] = useState<string | null>(null);
 
-  const language = getSetting('language', 'vi') as 'vi' | 'en';
+  const language = getSetting('language', 'vi');
   const currency = getSetting('currency', 'VND');
   const theme = getSetting('theme', 'light');
   const dateFormat = getSetting('date_format', 'dd/MM/yyyy');
 
-  const t = translations[language];
+  const t = translations[language] || translations['vi'];
 
   const handleBackup = () => {
     const token = localStorage.getItem('auth_token');

@@ -18,8 +18,8 @@ export default function ProfileView({ viewModel, onClose }: { viewModel: ReturnT
   const [passwordLoading, setPasswordLoading] = useState(false);
   const [message, setMessage] = useState<{ text: string, type: 'success' | 'error' } | null>(null);
 
-  const language = getSetting('language', 'vi') as 'vi' | 'en';
-  const t = translations[language];
+  const language = getSetting('language', 'vi');
+  const t = translations[language] || translations['vi'];
 
   const handleUpdateProfile = async (e: React.FormEvent) => {
     e.preventDefault();

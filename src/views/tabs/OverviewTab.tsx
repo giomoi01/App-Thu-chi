@@ -11,13 +11,13 @@ type TimeFilter = 'today' | 'week' | 'month' | 'quarter' | 'year';
 
 const COLORS = ['#ef4444', '#f97316', '#f59e0b', '#84cc16', '#22c55e', '#06b6d4', '#3b82f6', '#8b5cf6', '#d946ef', '#f43f5e'];
 
-export default function OverviewTab({ viewModel, onTabChange }: { viewModel: ReturnType<typeof useFinanceViewModel>, onTabChange: (index: number) => void }) {
+export default function OverviewTab({ viewModel, onTabChange, onNavigateToBudget }: { viewModel: ReturnType<typeof useFinanceViewModel>, onTabChange: (index: number) => void, onNavigateToBudget?: (subTab: 'budgets' | 'goals') => void }) {
   const { transactions, budgets, goals, loading, getSetting, formatCurrency, formatDate, translateName } = viewModel;
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('month');
 
-  const language = getSetting('language', 'vi') as 'vi' | 'en';
+  const language = getSetting('language', 'vi');
   const dateFormat = getSetting('date_format', 'dd/MM/yyyy');
-  const t = translations[language];
+  const t = translations[language] || translations['vi'];
 
   const { currentInterval, prevInterval } = useMemo(() => {
     const now = new Date();
@@ -198,7 +198,7 @@ export default function OverviewTab({ viewModel, onTabChange }: { viewModel: Ret
         <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
           <div className="flex justify-between items-center mb-4">
             <h3 className="font-bold text-gray-800">{t.budgetStatus}</h3>
-            <button onClick={() => onTabChange(2)} className="text-xs text-red-600 font-medium hover:underline">{t.seeAll}</button>
+            <button onClick={() => onNavigateToBudget?.('budgets')} className="text-xs text-red-600 font-medium hover:underline">{t.seeAll}</button>
           </div>
           <div className="space-y-3 font-mono text-xs">
             {budgetStatusData.map((b, idx) => {
@@ -232,7 +232,7 @@ export default function OverviewTab({ viewModel, onTabChange }: { viewModel: Ret
         <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
           <div className="flex justify-between items-center mb-4">
             <h3 className="font-bold text-gray-800">{t.goalsProgress}</h3>
-            <button onClick={() => onTabChange(2)} className="text-xs text-red-600 font-medium hover:underline">{t.seeAll}</button>
+            <button onClick={() => onNavigateToBudget?.('goals')} className="text-xs text-red-600 font-medium hover:underline">{t.seeAll}</button>
           </div>
           <div className="space-y-3 text-xs">
             {goals.map((goal, idx) => (

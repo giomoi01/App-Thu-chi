@@ -20,6 +20,7 @@ export default function AddTab({ viewModel, onClose, onSaveSuccess }: { viewMode
   const [errorMsg, setErrorMsg] = useState('');
   
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const audioInputRef = useRef<HTMLInputElement>(null);
 
   const language = getSetting('language', 'vi') as keyof typeof translations;
   const currency = getSetting('currency', 'VND');
@@ -135,6 +136,9 @@ export default function AddTab({ viewModel, onClose, onSaveSuccess }: { viewMode
     }
 
     try {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        throw new Error("getUserMedia not supported");
+      }
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const recorder = new MediaRecorder(stream);
       audioChunksRef.current = [];
@@ -159,9 +163,28 @@ export default function AddTab({ viewModel, onClose, onSaveSuccess }: { viewMode
       mediaRecorderRef.current = recorder;
       setStatus('listening');
     } catch (err) {
-      console.error(err);
-      alert(language === 'vi' ? "Không thể truy cập micro. Vui lòng cấp quyền." : "Cannot access microphone. Please grant permission.");
-      setStatus('idle');
+      console.warn("Falling back to file input for audio:", err);
+      audioInputRef.current?.click();
+    }
+  };
+
+  const handleAudioFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setStatus('processing');
+    try {
+      const reader = new FileReader();
+      reader.onloadend = async () => {
+        const base64Data = (reader.result as string).split(',')[1];
+        await parseAudioWithGemini(base64Data, file.type);
+      };
+      reader.readAsDataURL(file);
+    } catch (error) {
+      console.error(error);
+      setStatus('error');
+      setErrorMsg(t.voiceError);
+      setTimeout(() => setStatus('idle'), 3000);
     }
   };
 
@@ -347,8 +370,15 @@ export default function AddTab({ viewModel, onClose, onSaveSuccess }: { viewMode
               ref={fileInputRef} 
               className="hidden" 
               accept="image/*" 
-              capture="environment"
               onChange={handleFileChange}
+            />
+            <input 
+              type="file" 
+              ref={audioInputRef} 
+              className="hidden" 
+              accept="audio/*" 
+              capture="microphone"
+              onChange={handleAudioFileChange}
             />
           </div>
 
@@ -383,48 +413,7 @@ export default function AddTab({ viewModel, onClose, onSaveSuccess }: { viewMode
               />
             </div>
 
-            <div className="grid grid-cols-[3fr_2fr] gap-3">
-              <div>
-                <label className="block text-[10px] font-medium text-gray-400 uppercase tracking-wider mb-1">{t.account}</label>
-                <div className="flex items-center gap-2">
-                  <div className="relative flex-1">
-                    <CustomSelect
-                      value={accountId}
-                      onChange={(val) => setAccountId(Number(val))}
-                      options={sortedAccounts.map(acc => ({
-                        value: acc.id,
-                        label: translateName(acc.name),
-                        icon: <span className="text-blue-500">{getAccountIcon(acc.icon)}</span>
-                      }))}
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-[10px] font-medium text-gray-400 uppercase tracking-wider mb-1">{t.date}</label>
-                <div className="relative">
-                  <div className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-sm flex items-center justify-between gap-1.5 h-[38px]">
-                    <span className="truncate">{date ? formatDate(date) : <span className="text-gray-400">{dateFormat.toLowerCase()}</span>}</span>
-                    <Calendar size={16} className="text-gray-400 flex-shrink-0" />
-                  </div>
-                  <input
-                    type="date"
-                    value={date}
-                    onClick={(e) => {
-                      try {
-                        if ('showPicker' in e.currentTarget) {
-                          e.currentTarget.showPicker();
-                        }
-                      } catch (err) {}
-                    }}
-                    onChange={(e) => setDate(e.target.value)}
-                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-                  />
-                </div>
-              </div>
-            </div>
-
+            {/* Category Input */}
             <div>
               <label className="block text-[10px] font-medium text-gray-400 uppercase tracking-wider mb-1">{t.category}</label>
               <div className="flex items-center gap-2">
@@ -452,6 +441,49 @@ export default function AddTab({ viewModel, onClose, onSaveSuccess }: { viewMode
               )}
             </div>
 
+            {/* Account Input */}
+            <div>
+              <label className="block text-[10px] font-medium text-gray-400 uppercase tracking-wider mb-1">{t.account}</label>
+              <div className="flex items-center gap-2">
+                <div className="relative flex-1">
+                  <CustomSelect
+                    value={accountId}
+                    onChange={(val) => setAccountId(Number(val))}
+                    options={sortedAccounts.map(acc => ({
+                      value: acc.id,
+                      label: translateName(acc.name),
+                      icon: <span className="text-blue-500">{getAccountIcon(acc.icon)}</span>
+                    }))}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Date Input */}
+            <div>
+              <label className="block text-[10px] font-medium text-gray-400 uppercase tracking-wider mb-1">{t.date}</label>
+              <div className="relative">
+                <div className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-sm flex items-center justify-between gap-1.5 h-[38px]">
+                  <span className="truncate">{date ? formatDate(date) : <span className="text-gray-400">{dateFormat.toLowerCase()}</span>}</span>
+                  <Calendar size={16} className="text-gray-400 flex-shrink-0" />
+                </div>
+                <input
+                  type="date"
+                  value={date}
+                  onClick={(e) => {
+                    try {
+                      if ('showPicker' in e.currentTarget) {
+                        e.currentTarget.showPicker();
+                      }
+                    } catch (err) {}
+                  }}
+                  onChange={(e) => setDate(e.target.value)}
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                />
+              </div>
+            </div>
+
+            {/* Note Input */}
             <div>
               <label className="block text-[10px] font-medium text-gray-400 uppercase tracking-wider mb-1">{t.note}</label>
               <input
