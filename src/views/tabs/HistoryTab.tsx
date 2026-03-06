@@ -26,7 +26,7 @@ export default function HistoryTab({ viewModel }: { viewModel: ReturnType<typeof
   const [editingTx, setEditingTx] = useState<Transaction | null>(null);
   const [editDisplayAmount, setEditDisplayAmount] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [displayLimit, setDisplayLimit] = useState(50);
+  const [displayLimit, setDisplayLimit] = useState(15);
 
   const language = getSetting('language', 'vi');
   const currency = getSetting('currency', 'VND');
@@ -52,7 +52,7 @@ export default function HistoryTab({ viewModel }: { viewModel: ReturnType<typeof
   }, [editingTx?.id]);
 
   useEffect(() => {
-    setDisplayLimit(50);
+    setDisplayLimit(15);
   }, [filter, search, timeFilter, customStart, customEnd]);
 
   useEffect(() => {
@@ -61,7 +61,7 @@ export default function HistoryTab({ viewModel }: { viewModel: ReturnType<typeof
 
     const handleScroll = () => {
       if (main.scrollTop + main.clientHeight >= main.scrollHeight - 100) {
-        setDisplayLimit(prev => prev + 50);
+        setDisplayLimit(prev => prev + 15);
       }
     };
 
@@ -444,11 +444,24 @@ export default function HistoryTab({ viewModel }: { viewModel: ReturnType<typeof
                     <CustomSelect
                       value={editingTx.category}
                       onChange={(val) => setEditingTx({ ...editingTx, category: val })}
-                      options={sortCategories(categories.filter(c => c.type === editingTx.type && c.parent_id !== null)).map(c => ({
-                        value: c.name,
-                        label: translateName(c.name),
-                        icon: <span className={editingTx.type === 'expense' ? 'text-red-500' : 'text-green-500'}>{getCategoryIcon(c.icon)}</span>
-                      }))}
+                      options={sortCategories(categories.filter(c => c.type === editingTx.type && c.parent_id === null)).flatMap(parent => {
+                        const children = sortCategories(categories.filter(c => c.type === editingTx.type && c.parent_id === parent.id));
+                        if (children.length === 0) {
+                          return [{
+                            value: parent.name,
+                            label: translateName(parent.name),
+                            icon: <span className={editingTx.type === 'expense' ? 'text-red-500' : 'text-green-500'}>{getCategoryIcon(parent.icon)}</span>
+                          }];
+                        }
+                        return [
+                          { value: `group-${parent.id}`, label: translateName(parent.name), isGroup: true, icon: <span className={editingTx.type === 'expense' ? 'text-red-500' : 'text-green-500'}>{getCategoryIcon(parent.icon)}</span> },
+                          ...children.map(child => ({
+                            value: child.name,
+                            label: translateName(child.name),
+                            icon: <span className={editingTx.type === 'expense' ? 'text-red-500' : 'text-green-500'}>{getCategoryIcon(child.icon)}</span>
+                          }))
+                        ];
+                      })}
                     />
                   </div>
                 </div>

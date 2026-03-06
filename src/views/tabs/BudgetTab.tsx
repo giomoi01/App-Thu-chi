@@ -551,11 +551,24 @@ export default function BudgetTab({ viewModel, initialTab = 'budgets' }: { viewM
                     value={budgetCategory}
                     onChange={(val) => setBudgetCategory(val)}
                     placeholder={t.selectCategory}
-                    options={sortCategories(categories.filter(c => c.type === 'expense' && c.parent_id !== null)).map(c => ({
-                      value: c.name,
-                      label: translateName(c.name),
-                      icon: <span className="text-red-500">{getCategoryIcon(c.icon)}</span>
-                    }))}
+                    options={sortCategories(categories.filter(c => c.type === 'expense' && c.parent_id === null)).flatMap(parent => {
+                      const children = sortCategories(categories.filter(c => c.type === 'expense' && c.parent_id === parent.id));
+                      if (children.length === 0) {
+                        return [{
+                          value: parent.name,
+                          label: translateName(parent.name),
+                          icon: <span className="text-red-500">{getCategoryIcon(parent.icon)}</span>
+                        }];
+                      }
+                      return [
+                        { value: `group-${parent.id}`, label: translateName(parent.name), isGroup: true, icon: <span className="text-red-500">{getCategoryIcon(parent.icon)}</span> },
+                        ...children.map(child => ({
+                          value: child.name,
+                          label: translateName(child.name),
+                          icon: <span className="text-red-500">{getCategoryIcon(child.icon)}</span>
+                        }))
+                      ];
+                    })}
                   />
                 </div>
               </div>

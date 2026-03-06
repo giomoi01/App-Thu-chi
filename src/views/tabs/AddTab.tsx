@@ -422,14 +422,24 @@ export default function AddTab({ viewModel, onClose, onSaveSuccess }: { viewMode
                     value={category}
                     onChange={(val) => setCategory(val)}
                     placeholder={t.selectCategory}
-                    options={parentCategories.flatMap(parent => [
-                      { value: `group-${parent.id}`, label: translateName(parent.name), isGroup: true, icon: <span className={type === 'expense' ? 'text-red-500' : 'text-green-500'}>{getCategoryIcon(parent.icon)}</span> },
-                      ...sortCategories(filteredCategories.filter(c => c.parent_id === parent.id)).map(child => ({
-                        value: child.name,
-                        label: translateName(child.name),
-                        icon: <span className={type === 'expense' ? 'text-red-500' : 'text-green-500'}>{getCategoryIcon(child.icon)}</span>
-                      }))
-                    ])}
+                    options={parentCategories.flatMap(parent => {
+                      const children = sortCategories(filteredCategories.filter(c => c.parent_id === parent.id));
+                      if (children.length === 0) {
+                        return [{
+                          value: parent.name,
+                          label: translateName(parent.name),
+                          icon: <span className={type === 'expense' ? 'text-red-500' : 'text-green-500'}>{getCategoryIcon(parent.icon)}</span>
+                        }];
+                      }
+                      return [
+                        { value: `group-${parent.id}`, label: translateName(parent.name), isGroup: true, icon: <span className={type === 'expense' ? 'text-red-500' : 'text-green-500'}>{getCategoryIcon(parent.icon)}</span> },
+                        ...children.map(child => ({
+                          value: child.name,
+                          label: translateName(child.name),
+                          icon: <span className={type === 'expense' ? 'text-red-500' : 'text-green-500'}>{getCategoryIcon(child.icon)}</span>
+                        }))
+                      ];
+                    })}
                   />
                 </div>
               </div>
@@ -441,45 +451,46 @@ export default function AddTab({ viewModel, onClose, onSaveSuccess }: { viewMode
               )}
             </div>
 
-            {/* Account Input */}
-            <div>
-              <label className="block text-[10px] font-medium text-gray-400 uppercase tracking-wider mb-1">{t.account}</label>
-              <div className="flex items-center gap-2">
-                <div className="relative flex-1">
-                  <CustomSelect
-                    value={accountId}
-                    onChange={(val) => setAccountId(Number(val))}
-                    options={sortedAccounts.map(acc => ({
-                      value: acc.id,
-                      label: translateName(acc.name),
-                      icon: <span className="text-blue-500">{getAccountIcon(acc.icon)}</span>
-                    }))}
-                  />
+            {/* Account & Date Input */}
+            <div className="flex gap-3">
+              <div className="flex-1">
+                <label className="block text-[10px] font-medium text-gray-400 uppercase tracking-wider mb-1">{t.account}</label>
+                <div className="flex items-center gap-2">
+                  <div className="relative flex-1">
+                    <CustomSelect
+                      value={accountId}
+                      onChange={(val) => setAccountId(Number(val))}
+                      options={sortedAccounts.map(acc => ({
+                        value: acc.id,
+                        label: translateName(acc.name),
+                        icon: <span className="text-blue-500">{getAccountIcon(acc.icon)}</span>
+                      }))}
+                    />
+                  </div>
                 </div>
               </div>
-            </div>
 
-            {/* Date Input */}
-            <div>
-              <label className="block text-[10px] font-medium text-gray-400 uppercase tracking-wider mb-1">{t.date}</label>
-              <div className="relative">
-                <div className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-sm flex items-center justify-between gap-1.5 h-[38px]">
-                  <span className="truncate">{date ? formatDate(date) : <span className="text-gray-400">{dateFormat.toLowerCase()}</span>}</span>
-                  <Calendar size={16} className="text-gray-400 flex-shrink-0" />
+              <div className="flex-1">
+                <label className="block text-[10px] font-medium text-gray-400 uppercase tracking-wider mb-1">{t.date}</label>
+                <div className="relative">
+                  <div className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-sm flex items-center justify-between gap-1.5 h-[38px]">
+                    <span className="truncate">{date ? formatDate(date) : <span className="text-gray-400">{dateFormat.toLowerCase()}</span>}</span>
+                    <Calendar size={16} className="text-gray-400 flex-shrink-0" />
+                  </div>
+                  <input
+                    type="date"
+                    value={date}
+                    onClick={(e) => {
+                      try {
+                        if ('showPicker' in e.currentTarget) {
+                          e.currentTarget.showPicker();
+                        }
+                      } catch (err) {}
+                    }}
+                    onChange={(e) => setDate(e.target.value)}
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                  />
                 </div>
-                <input
-                  type="date"
-                  value={date}
-                  onClick={(e) => {
-                    try {
-                      if ('showPicker' in e.currentTarget) {
-                        e.currentTarget.showPicker();
-                      }
-                    } catch (err) {}
-                  }}
-                  onChange={(e) => setDate(e.target.value)}
-                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-                />
               </div>
             </div>
 

@@ -7,8 +7,8 @@ import { translations } from '../utils/translations';
 import { CATEGORY_ICONS, getCategoryIcon } from '../utils/icons';
 
 export default function CategoryManager({ viewModel, onClose }: { viewModel: ReturnType<typeof useFinanceViewModel>, onClose: () => void }) {
-  const { categories, refresh, getSetting, translateName } = viewModel;
-  const [activeTab, setActiveTab] = useState<'expense' | 'income'>('expense');
+  const { categories, transactions, refresh, getSetting, translateName } = viewModel;
+  const [activeTab, setActiveTab] = useState<'expense' | 'income'>('income');
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editName, setEditName] = useState('');
   const [editIcon, setEditIcon] = useState('MoreHorizontal');
@@ -16,6 +16,8 @@ export default function CategoryManager({ viewModel, onClose }: { viewModel: Ret
   const [newName, setNewName] = useState('');
   const [newIcon, setNewIcon] = useState('MoreHorizontal');
   const [newParentId, setNewParentId] = useState<number | null>(null);
+  const [confirmDialog, setConfirmDialog] = useState<{ isOpen: boolean, message: string, onConfirm: () => void } | null>(null);
+  const [alertDialog, setAlertDialog] = useState<{ isOpen: boolean, message: string } | null>(null);
 
   const language = getSetting('language', 'vi');
   const t = translations[language] || translations['vi'];
@@ -44,22 +46,61 @@ export default function CategoryManager({ viewModel, onClose }: { viewModel: Ret
     if (!editingId || !editName.trim()) return;
     try {
       await api.updateCategory(editingId, { name: editName, icon: editIcon });
-      await refresh();
+      await refresh(true);
       setEditingId(null);
     } catch (err) {
-      alert('Lỗi khi cập nhật danh mục / Error updating category');
+      setAlertDialog({ isOpen: true, message: 'Lỗi khi cập nhật danh mục / Error updating category' });
     }
   };
 
   const handleDelete = async (category: Category) => {
-    if (confirm(`Bạn có muốn xóa không ?`)) {
-      try {
-        await api.deleteCategory(category.id);
-        await refresh();
-      } catch (err) {
-        alert('Lỗi khi xóa danh mục / Error deleting category');
-      }
+    // Check if this category or any of its children have transactions
+    const children = categories.filter(c => c.parent_id === category.id);
+    const categoryIdsToCheck = [category.id, ...children.map(c => c.id)];
+    
+    const hasTransactions = transactions.some(t => {
+      // Find the category object for the transaction to check its name or ID
+      // The transaction model stores category name, but let's be safe and check both if possible
+      // Actually, looking at AddTab.tsx, it saves the category name (string)
+      return categoryIdsToCheck.some(id => {
+        const cat = categories.find(c => c.id === id);
+        return cat && t.category === cat.name;
+      });
+    });
+
+    if (hasTransactions) {
+      const typeText = category.type === 'income' ? (t.incomeType || 'thu') : (t.expenseType || 'chi');
+      const errorMessage = (t.deleteCategoryError || 'Đã tồn tại dữ liệu {type} trong lịch sử giao dịch {category}. Không xoá được !')
+        .replace('{type}', typeText)
+        .replace('{category}', translateName(category.name));
+        
+      setAlertDialog({ 
+        isOpen: true, 
+        message: errorMessage
+      });
+      return;
     }
+
+    const confirmMsg = `${t.confirmDeleteCat || 'Bạn có chắc muốn xóa danh mục'} "${translateName(category.name)}"?`;
+    setConfirmDialog({
+      isOpen: true,
+      message: confirmMsg,
+      onConfirm: async () => {
+        try {
+          // Delete children first
+          for (const child of children) {
+            await api.deleteCategory(child.id);
+          }
+          
+          await api.deleteCategory(category.id);
+          await refresh(true);
+          setConfirmDialog(null);
+        } catch (err) {
+          setConfirmDialog(null);
+          setAlertDialog({ isOpen: true, message: 'Lỗi khi xóa danh mục / Error deleting category' });
+        }
+      }
+    });
   };
 
   const handleAdd = async () => {
@@ -71,13 +112,13 @@ export default function CategoryManager({ viewModel, onClose }: { viewModel: Ret
         parent_id: newParentId,
         icon: newIcon
       });
-      await refresh();
+      await refresh(true);
       setShowAdd(false);
       setNewName('');
       setNewIcon('MoreHorizontal');
       setNewParentId(null);
     } catch (err) {
-      alert('Lỗi khi thêm danh mục / Error adding category');
+      setAlertDialog({ isOpen: true, message: 'Lỗi khi thêm danh mục / Error adding category' });
     }
   };
 
@@ -216,7 +257,7 @@ export default function CategoryManager({ viewModel, onClose }: { viewModel: Ret
         <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-xl">
             <h3 className="text-lg font-bold text-gray-800 mb-4">
-              {newParentId ? t.addCatChild : t.addCatGroupTitle}
+              {newParentId ? t.addCatChild : `${t.add} ${activeTab === 'expense' ? t.expense : t.income}`}
             </h3>
             
             <div className="mb-4">
@@ -269,6 +310,44 @@ export default function CategoryManager({ viewModel, onClose }: { viewModel: Ret
                 {t.add}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {confirmDialog && (
+        <div className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-xl">
+            <h3 className="text-lg font-bold text-gray-800 mb-2">{t.confirmDeleteCat || 'Xác nhận xóa'}</h3>
+            <p className="text-gray-600 mb-6">{confirmDialog.message}</p>
+            <div className="flex gap-3">
+              <button 
+                onClick={() => setConfirmDialog(null)}
+                className="flex-1 py-3 bg-gray-100 text-gray-700 rounded-xl font-medium"
+              >
+                {t.cancel || 'Hủy'}
+              </button>
+              <button 
+                onClick={confirmDialog.onConfirm}
+                className="flex-1 py-3 bg-red-600 text-white rounded-xl font-medium"
+              >
+                {t.delete || 'Xóa'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {alertDialog && (
+        <div className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-xl">
+            <h3 className="text-lg font-bold text-gray-800 mb-2">{t.notification || 'Thông báo'}</h3>
+            <p className="text-gray-600 mb-6">{alertDialog.message}</p>
+            <button 
+              onClick={() => setAlertDialog(null)}
+              className="w-full py-3 bg-red-600 text-white rounded-xl font-medium"
+            >
+              OK
+            </button>
           </div>
         </div>
       )}

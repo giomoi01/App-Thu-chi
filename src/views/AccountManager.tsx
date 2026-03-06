@@ -11,19 +11,47 @@ export default function AccountManager({ viewModel, onClose }: { viewModel: Retu
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editName, setEditName] = useState('');
   const [editBalance, setEditBalance] = useState(0);
+  const [displayEditBalance, setDisplayEditBalance] = useState('0');
   const [editIcon, setEditIcon] = useState('Wallet');
   const [showAdd, setShowAdd] = useState(false);
   const [newName, setNewName] = useState('');
   const [newBalance, setNewBalance] = useState(0);
+  const [displayNewBalance, setDisplayNewBalance] = useState('0');
   const [newIcon, setNewIcon] = useState('Wallet');
+  const [confirmDialog, setConfirmDialog] = useState<{ isOpen: boolean, message: string, onConfirm: () => void } | null>(null);
+  const [alertDialog, setAlertDialog] = useState<{ isOpen: boolean, message: string } | null>(null);
 
   const language = getSetting('language', 'vi');
   const t = translations[language] || translations['vi'];
+
+  const formatBalanceInput = (val: string, isEdit: boolean) => {
+    const cleanVal = val.replace(/\D/g, '');
+    if (cleanVal === '') {
+      if (isEdit) {
+        setEditBalance(0);
+        setDisplayEditBalance('');
+      } else {
+        setNewBalance(0);
+        setDisplayNewBalance('');
+      }
+      return;
+    }
+    const num = parseInt(cleanVal);
+    const formatted = num.toLocaleString('vi-VN');
+    if (isEdit) {
+      setEditBalance(num);
+      setDisplayEditBalance(formatted);
+    } else {
+      setNewBalance(num);
+      setDisplayNewBalance(formatted);
+    }
+  };
 
   const handleEdit = (account: Account) => {
     setEditingId(account.id);
     setEditName(account.name);
     setEditBalance(account.balance);
+    setDisplayEditBalance(account.balance.toLocaleString('vi-VN'));
     setEditIcon(account.icon || 'Wallet');
   };
 
@@ -31,22 +59,28 @@ export default function AccountManager({ viewModel, onClose }: { viewModel: Retu
     if (!editingId || !editName.trim()) return;
     try {
       await api.updateAccount(editingId, { name: editName, balance: editBalance, icon: editIcon });
-      await refresh();
+      await refresh(true);
       setEditingId(null);
     } catch (err) {
-      alert('Lỗi khi cập nhật tài khoản / Error updating account');
+      setAlertDialog({ isOpen: true, message: 'Lỗi khi cập nhật tài khoản / Error updating account' });
     }
   };
 
   const handleDelete = async (account: Account) => {
-    if (confirm(`${t.confirmDeleteAcc} "${translateName(account.name)}"?`)) {
-      try {
-        await api.deleteAccount(account.id);
-        await refresh();
-      } catch (err) {
-        alert('Lỗi khi xóa tài khoản / Error deleting account');
+    setConfirmDialog({
+      isOpen: true,
+      message: `${t.confirmDeleteAcc} "${translateName(account.name)}"?`,
+      onConfirm: async () => {
+        try {
+          await api.deleteAccount(account.id);
+          await refresh(true);
+          setConfirmDialog(null);
+        } catch (err) {
+          setConfirmDialog(null);
+          setAlertDialog({ isOpen: true, message: 'Lỗi khi xóa tài khoản / Error deleting account' });
+        }
       }
-    }
+    });
   };
 
   const handleAdd = async () => {
@@ -57,12 +91,13 @@ export default function AccountManager({ viewModel, onClose }: { viewModel: Retu
         balance: newBalance,
         icon: newIcon
       });
-      await refresh();
+      await refresh(true);
       setShowAdd(false);
       setNewName('');
       setNewBalance(0);
+      setDisplayNewBalance('0');
     } catch (err) {
-      alert('Lỗi khi thêm tài khoản / Error adding account');
+      setAlertDialog({ isOpen: true, message: 'Lỗi khi thêm tài khoản / Error adding account' });
     }
   };
 
@@ -93,9 +128,10 @@ export default function AccountManager({ viewModel, onClose }: { viewModel: Retu
                 <div>
                   <label className="block text-[10px] font-medium text-gray-400 uppercase mb-1">{t.initialBalance}</label>
                   <input 
-                    type="number" 
-                    value={editBalance} 
-                    onChange={(e) => setEditBalance(Number(e.target.value))}
+                    type="text"
+                    inputMode="numeric"
+                    value={displayEditBalance} 
+                    onChange={(e) => formatBalanceInput(e.target.value, true)}
                     className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm"
                   />
                 </div>
@@ -106,7 +142,7 @@ export default function AccountManager({ viewModel, onClose }: { viewModel: Retu
                       <button
                         key={icon}
                         onClick={() => setEditIcon(icon)}
-                        className={`p-2 rounded-lg border-2 transition-colors ${editIcon === icon ? 'border-red-500 bg-red-50 text-red-600' : 'border-gray-200 text-gray-500 hover:bg-gray-50'}`}
+                        className={`p-2 rounded-lg border-2 transition-colors ${editIcon === icon ? 'border-blue-500 bg-blue-50 text-blue-600' : 'border-gray-200 text-gray-500 hover:bg-gray-50'}`}
                       >
                         {ACCOUNT_ICONS[icon]}
                       </button>
@@ -121,7 +157,7 @@ export default function AccountManager({ viewModel, onClose }: { viewModel: Retu
             ) : (
               <>
                 <div className="flex items-center">
-                  <div className={`w-12 h-12 rounded-full flex items-center justify-center mr-4 ${account.is_default ? 'bg-red-100 text-red-600' : 'bg-blue-100 text-blue-600'}`}>
+                  <div className="w-12 h-12 rounded-full flex items-center justify-center mr-4 bg-blue-100 text-blue-600">
                     {getAccountIcon(account.icon)}
                   </div>
                   <div>
@@ -141,7 +177,13 @@ export default function AccountManager({ viewModel, onClose }: { viewModel: Retu
         ))}
 
         <button 
-          onClick={() => setShowAdd(true)}
+          onClick={() => {
+            setShowAdd(true);
+            setNewName('');
+            setNewBalance(0);
+            setDisplayNewBalance('0');
+            setNewIcon('Wallet');
+          }}
           className="w-full py-4 border-2 border-dashed border-gray-300 rounded-2xl text-gray-500 font-medium hover:bg-gray-50 hover:border-red-300 hover:text-red-500 transition-colors flex items-center justify-center"
         >
           <Plus size={20} className="mr-2" />
@@ -169,9 +211,10 @@ export default function AccountManager({ viewModel, onClose }: { viewModel: Retu
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">{t.initialBalance}</label>
                 <input
-                  type="number"
-                  value={newBalance}
-                  onChange={(e) => setNewBalance(Number(e.target.value))}
+                  type="text"
+                  inputMode="numeric"
+                  value={displayNewBalance}
+                  onChange={(e) => formatBalanceInput(e.target.value, false)}
                   className="w-full border border-gray-300 rounded-xl px-4 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
                 />
               </div>
@@ -183,7 +226,7 @@ export default function AccountManager({ viewModel, onClose }: { viewModel: Retu
                     <button
                       key={icon}
                       onClick={() => setNewIcon(icon)}
-                      className={`p-3 rounded-xl border-2 transition-colors ${newIcon === icon ? 'border-red-500 bg-red-50 text-red-600' : 'border-gray-200 text-gray-500 hover:bg-gray-50'}`}
+                      className={`p-3 rounded-xl border-2 transition-colors ${newIcon === icon ? 'border-blue-500 bg-blue-50 text-blue-600' : 'border-gray-200 text-gray-500 hover:bg-gray-50'}`}
                     >
                       {ACCOUNT_ICONS[icon]}
                     </button>
@@ -206,6 +249,44 @@ export default function AccountManager({ viewModel, onClose }: { viewModel: Retu
                 {t.add}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {confirmDialog && (
+        <div className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-xl">
+            <h3 className="text-lg font-bold text-gray-800 mb-2">{t.confirmDeleteAcc || 'Xác nhận xóa'}</h3>
+            <p className="text-gray-600 mb-6">{confirmDialog.message}</p>
+            <div className="flex gap-3">
+              <button 
+                onClick={() => setConfirmDialog(null)}
+                className="flex-1 py-3 bg-gray-100 text-gray-700 rounded-xl font-medium"
+              >
+                {t.cancel || 'Hủy'}
+              </button>
+              <button 
+                onClick={confirmDialog.onConfirm}
+                className="flex-1 py-3 bg-red-600 text-white rounded-xl font-medium"
+              >
+                {t.delete || 'Xóa'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {alertDialog && (
+        <div className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-xl">
+            <h3 className="text-lg font-bold text-gray-800 mb-2">{t.notification || 'Thông báo'}</h3>
+            <p className="text-gray-600 mb-6">{alertDialog.message}</p>
+            <button 
+              onClick={() => setAlertDialog(null)}
+              className="w-full py-3 bg-red-600 text-white rounded-xl font-medium"
+            >
+              OK
+            </button>
           </div>
         </div>
       )}

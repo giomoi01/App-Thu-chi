@@ -1,13 +1,16 @@
 import React, { useState } from 'react';
 import { useFinanceViewModel } from '../viewmodels/useFinanceViewModel';
-import { ArrowLeft, Globe, DollarSign, Palette, Database, Download, Upload, Star, ChevronRight, Calendar, List, Wallet, User, LogOut } from 'lucide-react';
+import { ArrowLeft, Globe, DollarSign, Palette, Database, Download, Upload, Star, ChevronRight, Calendar, List, Wallet, User, FileText } from 'lucide-react';
 import CategoryManager from './CategoryManager';
 import AccountManager from './AccountManager';
 import ProfileView from './ProfileView';
 import { translations } from '../utils/translations';
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import ExcelJS from 'exceljs';
 
 export default function SettingsView({ viewModel, onClose }: { viewModel: ReturnType<typeof useFinanceViewModel>, onClose: () => void }) {
-  const { getSetting, updateSetting, user, logout } = viewModel;
+  const { getSetting, updateSetting, user, transactions, budgets, goals, categories, accounts, formatCurrency, formatDate, translateName } = viewModel;
   const [activeSection, setActiveSection] = useState<string | null>(null);
 
   const language = getSetting('language', 'vi');
@@ -17,46 +20,191 @@ export default function SettingsView({ viewModel, onClose }: { viewModel: Return
 
   const t = translations[language] || translations['vi'];
 
-  const handleBackup = () => {
-    const token = localStorage.getItem('auth_token');
-    window.location.href = `/api/backup?token=${token}`;
-  };
-
-  const handleRestore = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const formData = new FormData();
-    formData.append('file', file);
-
+  const handleBackup = async () => {
+    console.log('Starting client-side backup (converting to SQLite on server)...');
     try {
-      const token = localStorage.getItem('auth_token');
-      const res = await fetch('/api/restore', {
+      const data = {
+        transactions,
+        budgets,
+        goals,
+        settings: viewModel.settings,
+        categories,
+        accounts,
+        user,
+        export_date: new Date().toISOString(),
+        version: 'v6'
+      };
+
+      const response = await fetch('/api/export/sqlite', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${token}`
+          'Content-Type': 'application/json',
         },
-        body: formData,
+        body: JSON.stringify(data),
       });
-      if (res.ok) {
-        alert('Khôi phục dữ liệu thành công! Ứng dụng sẽ tải lại.');
-        window.location.reload();
-      } else {
-        alert('Lỗi khi khôi phục dữ liệu.');
-      }
+
+      if (!response.ok) throw new Error('Failed to generate SQLite backup');
+
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const dateStr = new Date().toISOString().split('T')[0].replace(/-/g, '');
+      a.href = url;
+      a.download = `backup_${dateStr}.db`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
     } catch (err) {
-      alert('Lỗi khi khôi phục dữ liệu.');
+      console.error(err);
+      alert(language === 'vi' ? 'Lỗi khi sao lưu dữ liệu.' : 'Error backing up data.');
     }
   };
 
-  const handleExportExcel = () => {
-    const token = localStorage.getItem('auth_token');
-    window.location.href = `/api/export/excel?token=${token}`;
+  const handleRestore = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    console.log('Starting restore...');
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      let data: any;
+
+      if (file.name.endsWith('.db')) {
+        console.log('Detected SQLite .db file, converting on server...');
+        const formData = new FormData();
+        formData.append('file', file);
+
+        const response = await fetch('/api/convert/sqlite-to-json', {
+          method: 'POST',
+          body: formData,
+        });
+
+        if (!response.ok) throw new Error('Failed to convert SQLite backup');
+        data = await response.json();
+      } else {
+        console.log('Detected .json file, reading locally...');
+        const content = await file.text();
+        data = JSON.parse(content);
+      }
+
+      if (!data.transactions || !data.categories) {
+        throw new Error('Invalid backup file');
+      }
+
+      // Restore to localStorage (matching the mock api structure)
+      localStorage.setItem('mock_transactions', JSON.stringify(data.transactions));
+      localStorage.setItem('mock_budgets', JSON.stringify(data.budgets || []));
+      localStorage.setItem('mock_goals', JSON.stringify(data.goals || []));
+      localStorage.setItem('mock_settings', JSON.stringify(data.settings || []));
+      localStorage.setItem('mock_categories', JSON.stringify(data.categories || []));
+      localStorage.setItem('mock_accounts', JSON.stringify(data.accounts || []));
+      localStorage.setItem('mock_data_version', data.version || 'v6');
+      localStorage.setItem('mock_currentUser_obj', JSON.stringify(data.user));
+
+      alert(language === 'vi' ? 'Khôi phục dữ liệu thành công! Ứng dụng sẽ tải lại.' : 'Data restored successfully! App will reload.');
+      window.location.reload();
+    } catch (err) {
+      console.error(err);
+      alert(language === 'vi' ? 'Lỗi khi khôi phục dữ liệu: File không hợp lệ.' : 'Error restoring data: Invalid file.');
+    }
+  };
+
+  const handleExportExcel = async () => {
+    console.log('Starting client-side Excel export...');
+    try {
+      const workbook = new ExcelJS.Workbook();
+      const sheet = workbook.addWorksheet('Transactions');
+      
+      sheet.columns = [
+        { header: 'ID', key: 'id', width: 10 },
+        { header: 'Type', key: 'type', width: 15 },
+        { header: 'Amount', key: 'amount', width: 15 },
+        { header: 'Category', key: 'category', width: 20 },
+        { header: 'Date', key: 'date', width: 15 },
+        { header: 'Note', key: 'note', width: 30 },
+      ];
+      
+      transactions.forEach(t => {
+        sheet.addRow({
+          id: t.id,
+          type: t.type === 'income' ? '+' : '-',
+          amount: t.amount,
+          category: translateName(t.category),
+          date: formatDate(t.date),
+          note: t.note || ''
+        });
+      });
+      
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `finance_export_${new Date().getTime()}.xlsx`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error(err);
+      alert(language === 'vi' ? 'Lỗi khi xuất Excel.' : 'Error exporting Excel.');
+    }
   };
 
   const handleExportCSV = () => {
-    const token = localStorage.getItem('auth_token');
-    window.location.href = `/api/export/csv?token=${token}`;
+    console.log('Starting client-side CSV export...');
+    try {
+      let csv = 'ID,Type,Amount,Category,Date,Note\n';
+      transactions.forEach(t => {
+        csv += `${t.id},${t.type === 'income' ? '+' : '-'},${t.amount},"${translateName(t.category)}",${formatDate(t.date)},"${t.note || ''}"\n`;
+      });
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `finance_export_${new Date().getTime()}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error(err);
+      alert(language === 'vi' ? 'Lỗi khi xuất CSV.' : 'Error exporting CSV.');
+    }
+  };
+
+  const handleExportPDF = () => {
+    try {
+      const doc = new jsPDF();
+      
+      // Add title
+      doc.setFontSize(18);
+      doc.text(t.report || 'Report', 14, 22);
+      doc.setFontSize(11);
+      doc.setTextColor(100);
+      
+      // Add user info
+      doc.text(`${t.user || 'User'}: ${user?.full_name || ''} (${user?.email || ''})`, 14, 30);
+      doc.text(`${t.date || 'Date'}: ${new Date().toLocaleString()}`, 14, 36);
+      
+      // Prepare table data
+      const tableData = transactions.map(tx => [
+        formatDate(tx.date),
+        tx.type === 'income' ? '+' : '-',
+        translateName(tx.category),
+        formatCurrency(tx.amount),
+        tx.note || ''
+      ]);
+      
+      autoTable(doc, {
+        startY: 45,
+        head: [[t.date, t.type, t.category, t.amount, t.note]],
+        body: tableData,
+        theme: 'striped',
+        headStyles: { fillColor: [220, 38, 38] }, // red-600
+      });
+      
+      doc.save(`finance_report_${new Date().getTime()}.pdf`);
+    } catch (err) {
+      console.error(err);
+      alert(language === 'vi' ? 'Lỗi khi xuất PDF.' : 'Error exporting PDF.');
+    }
   };
 
   if (activeSection === 'categories') {
@@ -229,7 +377,7 @@ export default function SettingsView({ viewModel, onClose }: { viewModel: Return
             <div className="font-medium text-gray-800">{t.restore}</div>
             <div className="text-xs text-gray-500">{t.restoreDesc}</div>
           </div>
-          <input type="file" accept=".db" className="hidden" onChange={handleRestore} />
+          <input type="file" accept=".json,.db" className="hidden" onChange={handleRestore} />
         </label>
 
         <button onClick={handleExportExcel} className="w-full p-4 border-b border-gray-50 flex items-center hover:bg-gray-50 transition-colors text-left">
@@ -240,11 +388,19 @@ export default function SettingsView({ viewModel, onClose }: { viewModel: Return
           </div>
         </button>
 
-        <button onClick={handleExportCSV} className="w-full p-4 flex items-center hover:bg-gray-50 transition-colors text-left">
+        <button onClick={handleExportCSV} className="w-full p-4 border-b border-gray-50 flex items-center hover:bg-gray-50 transition-colors text-left">
           <Database size={20} className="mr-3 text-teal-600" />
           <div className="flex-1">
             <div className="font-medium text-gray-800">{t.exportCSV}</div>
             <div className="text-xs text-gray-500">{t.exportCSVDesc}</div>
+          </div>
+        </button>
+
+        <button onClick={handleExportPDF} className="w-full p-4 flex items-center hover:bg-gray-50 transition-colors text-left">
+          <FileText size={20} className="mr-3 text-red-500" />
+          <div className="flex-1">
+            <div className="font-medium text-gray-800">{t.exportPDF}</div>
+            <div className="text-xs text-gray-500">{t.exportPDFDesc}</div>
           </div>
         </button>
       </div>
@@ -262,7 +418,7 @@ export default function SettingsView({ viewModel, onClose }: { viewModel: Return
 
       <main className="flex-1 overflow-y-auto p-4 space-y-6">
         <section>
-          <h2 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-3 ml-1">Tài khoản</h2>
+          <h2 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-3 ml-1">{t.account || 'Tài khoản'}</h2>
           {renderAccountSection()}
         </section>
 
@@ -295,7 +451,7 @@ export default function SettingsView({ viewModel, onClose }: { viewModel: Return
         </section>
         
         <div className="text-center pb-6">
-          <p className="text-sm text-gray-400">{t.version} 1.0.0</p>
+          <p className="text-sm text-gray-400">{t.version} 1.0.1 (Client-side Export)</p>
         </div>
       </main>
     </div>

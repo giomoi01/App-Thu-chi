@@ -22,7 +22,7 @@ export default function App() {
     return () => clearTimeout(timer);
   }, []);
 
-  if (showSplash || loading) {
+  if (showSplash || (loading && !user)) {
     return <SplashScreen />;
   }
 

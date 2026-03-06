@@ -57,7 +57,7 @@ export function useFinanceViewModel() {
     return dateString;
   }, []);
 
-  const loadData = useCallback(async () => {
+  const loadData = useCallback(async (silent = false) => {
     if (!isInitialized) return;
     if (!api.isAuthenticated()) {
       setLoading(false);
@@ -65,7 +65,7 @@ export function useFinanceViewModel() {
     }
     
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       
       const loadPromise = Promise.all([
         api.getTransactions(),
@@ -98,13 +98,13 @@ export function useFinanceViewModel() {
         setError(err.message || 'Failed to load data');
       }
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [isInitialized]);
 
   useEffect(() => {
     if (isInitialized) {
-      loadData();
+      loadData(false);
     }
   }, [loadData, isInitialized]);
 
