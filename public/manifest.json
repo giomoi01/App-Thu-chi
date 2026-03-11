@@ -1,0 +1,27 @@
+{
+  "short_name": "e-Money",
+  "name": "e-Money - Quản lý tài chính",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "type": "image/svg+xml",
+      "sizes": "any",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "https://img.icons8.com/color/192/gold-coin.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "https://img.icons8.com/color/512/gold-coin.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "maskable"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#D40000",
+  "display": "standalone",
+  "theme_color": "#D40000"
+}

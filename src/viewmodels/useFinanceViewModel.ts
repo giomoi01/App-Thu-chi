@@ -3,6 +3,7 @@ import { Transaction, Budget, Goal, Setting, Category, Account, User } from '../
 import { api } from '../services/api';
 import { formatCurrency, formatDate } from '../utils/formatters';
 import { translations } from '../utils/translations';
+import { urlBase64ToUint8Array } from '../utils/vapid';
 
 export function useFinanceViewModel() {
   const [user, setUser] = useState<User | null>(null);
@@ -30,6 +31,8 @@ export function useFinanceViewModel() {
     if (setting) return setting.value;
     
     if (key === 'language') {
+      const localLang = localStorage.getItem('app_language');
+      if (localLang) return localLang;
       const isVN = navigator.language.toLowerCase().includes('vi');
       return isVN ? 'vi' : 'en';
     }
@@ -121,6 +124,18 @@ export function useFinanceViewModel() {
     }
   };
 
+  const setAuth = async (token: string, userData: User) => {
+    try {
+      await api.setAuth(token, userData);
+      setUser(userData);
+      await loadData();
+      return true;
+    } catch (err: any) {
+      setError(err.message);
+      return false;
+    }
+  };
+
   const register = async (data: any) => {
     try {
       const res = await api.register(data);
@@ -160,19 +175,6 @@ export function useFinanceViewModel() {
   const changePassword = async (data: any) => {
     try {
       await api.changePassword(data);
-      return true;
-    } catch (err: any) {
-      setError(err.message);
-      return false;
-    }
-  };
-
-  const socialLogin = async (data: any) => {
-    try {
-      const res = await api.socialLogin(data);
-      localStorage.setItem('auth_token', res.token);
-      setUser(res.user);
-      await loadData();
       return true;
     } catch (err: any) {
       setError(err.message);
@@ -292,7 +294,14 @@ export function useFinanceViewModel() {
 
   const updateSetting = async (key: string, value: string) => {
     try {
-      await api.updateSetting(key, value);
+      if (key === 'language') {
+        localStorage.setItem('app_language', value);
+      }
+
+      if (api.isAuthenticated()) {
+        await api.updateSetting(key, value);
+      }
+
       setSettings((prev) => {
         const existing = prev.find((s) => s.key === key);
         if (existing) {
@@ -300,6 +309,81 @@ export function useFinanceViewModel() {
         }
         return [...prev, { key, value }];
       });
+
+      // Handle notification setting change
+      if (key === 'notifications_enabled' && api.isAuthenticated()) {
+        if (value === 'true') {
+          await subscribeToNotifications();
+        } else {
+          await unsubscribeFromNotifications();
+        }
+      }
+
+      return true;
+    } catch (err: any) {
+      setError(err.message);
+      return false;
+    }
+  };
+
+  const transferBetweenAccounts = async (fromAccountId: number, toAccountId: number, amount: number, note?: string) => {
+    try {
+      await api.transfer(fromAccountId, toAccountId, amount, note);
+      await loadData(true);
+      return true;
+    } catch (err: any) {
+      setError(err.message);
+      return false;
+    }
+  };
+
+  const subscribeToNotifications = async () => {
+    try {
+      if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+        console.warn('Push notifications not supported');
+        return;
+      }
+
+      const registration = await navigator.serviceWorker.ready;
+      const permission = await Notification.requestPermission();
+      
+      if (permission !== 'granted') {
+        console.warn('Notification permission not granted');
+        return;
+      }
+
+      const vapidKey = await api.getVapidKey();
+      const applicationServerKey = urlBase64ToUint8Array(vapidKey);
+      
+      const subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: applicationServerKey
+      });
+
+      await api.subscribeNotifications(subscription);
+      console.log('Subscribed to notifications');
+    } catch (err) {
+      console.error('Failed to subscribe to notifications', err);
+    }
+  };
+
+  const unsubscribeFromNotifications = async () => {
+    try {
+      const registration = await navigator.serviceWorker.ready;
+      const subscription = await registration.pushManager.getSubscription();
+      if (subscription) {
+        await subscription.unsubscribe();
+        await api.unsubscribeNotifications(subscription);
+        console.log('Unsubscribed from notifications');
+      }
+    } catch (err) {
+      console.error('Failed to unsubscribe from notifications', err);
+    }
+  };
+
+  const forgotPassword = async (email: string) => {
+    try {
+      await api.forgotPassword(email);
       return true;
     } catch (err: any) {
       setError(err.message);
@@ -319,10 +403,11 @@ export function useFinanceViewModel() {
     error,
     login,
     register,
+    forgotPassword,
+    setAuth,
     logout,
     updateProfile,
     changePassword,
-    socialLogin,
     addTransaction,
     deleteTransaction,
     updateTransaction,
@@ -334,6 +419,7 @@ export function useFinanceViewModel() {
     deleteGoal,
     updateGoalAmount,
     updateSetting,
+    transferBetweenAccounts,
     getSetting,
     formatCurrency: formatCurrencyValue,
     formatDate: formatDateValue,

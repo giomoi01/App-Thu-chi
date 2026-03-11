@@ -15,8 +15,8 @@ let currentUser: User | null = null;
 // Initialize default data if empty
 const initializeDefaults = async () => {
   const version = await getItem('data_version');
-  if (version !== 'v6') {
-    if (version !== 'v5' && version !== 'v4' && version !== 'v3' && version !== 'v2') {
+  if (version !== 'v8') {
+    if (version !== 'v7' && version !== 'v6' && version !== 'v5' && version !== 'v4' && version !== 'v3' && version !== 'v2') {
       await setItem('categories', []);
       await setItem('accounts', []);
     }
@@ -47,8 +47,7 @@ const initializeDefaults = async () => {
         { id: 100, name: 'Ăn uống', type: 'expense', icon: 'Utensils', parent_id: null, is_default: true },
         { id: 101, name: 'Đi chợ, siêu thị', type: 'expense', icon: 'ShoppingCart', parent_id: 100, is_default: true },
         { id: 102, name: 'Ăn tiệm', type: 'expense', icon: 'UtensilsCrossed', parent_id: 100, is_default: true },
-        { id: 103, name: 'Cafe', type: 'expense', icon: 'Coffee', parent_id: 100, is_default: true },
-        { id: 104, name: 'Đồ uống', type: 'expense', icon: 'CupSoda', parent_id: 100, is_default: true },
+        { id: 104, name: 'Đồ uống', type: 'expense', icon: 'Coffee', parent_id: 100, is_default: true },
         { id: 105, name: 'Ăn sáng', type: 'expense', icon: 'Croissant', parent_id: 100, is_default: true },
         { id: 106, name: 'Ăn trưa', type: 'expense', icon: 'Soup', parent_id: 100, is_default: true },
         { id: 107, name: 'Ăn tối', type: 'expense', icon: 'Pizza', parent_id: 100, is_default: true },
@@ -116,20 +115,41 @@ const initializeDefaults = async () => {
     }
 
     // Migration to v5/v6: Add/Update income categories as top-level, remove "Thu nhập"
-    const existingCats = await getLocalArray('categories');
-    const otherCats = existingCats.filter((c: any) => c.type !== 'income');
-    const customIncomeCats = existingCats.filter((c: any) => c.type === 'income' && !c.is_default);
-    
-    const newIncomeDefaults = [
-      { id: 2, name: 'Lương', type: 'income', icon: 'Banknote', parent_id: null, is_default: true },
-      { id: 3, name: 'Thưởng', type: 'income', icon: 'Award', parent_id: null, is_default: true },
-      { id: 4, name: 'Bán hàng', type: 'income', icon: 'Store', parent_id: null, is_default: true },
-      { id: 5, name: 'Đầu tư', type: 'income', icon: 'TrendingUp', parent_id: null, is_default: true },
-      { id: 6, name: 'Cho tặng', type: 'income', icon: 'Gift', parent_id: null, is_default: true },
-    ];
+    if (version !== 'v6') {
+      const existingCats = await getLocalArray('categories');
+      const otherCats = existingCats.filter((c: any) => c.type !== 'income');
+      const customIncomeCats = existingCats.filter((c: any) => c.type === 'income' && !c.is_default);
+      
+      const newIncomeDefaults = [
+        { id: 2, name: 'Lương', type: 'income', icon: 'Banknote', parent_id: null, is_default: true },
+        { id: 3, name: 'Thưởng', type: 'income', icon: 'Award', parent_id: null, is_default: true },
+        { id: 4, name: 'Bán hàng', type: 'income', icon: 'Store', parent_id: null, is_default: true },
+        { id: 5, name: 'Đầu tư', type: 'income', icon: 'TrendingUp', parent_id: null, is_default: true },
+        { id: 6, name: 'Cho tặng', type: 'income', icon: 'Gift', parent_id: null, is_default: true },
+      ];
 
-    await setItem('categories', [...otherCats, ...newIncomeDefaults, ...customIncomeCats]);
-    await setItem('data_version', 'v6');
+      await setItem('categories', [...otherCats, ...newIncomeDefaults, ...customIncomeCats]);
+    }
+
+    // Migration to v7: Remove "Cafe" category
+    if (version !== 'v7') {
+      const catsAfterV6 = await getLocalArray('categories');
+      const filteredCats = catsAfterV6.filter((c: any) => c.name !== 'Cafe');
+      if (filteredCats.length !== catsAfterV6.length) {
+        await setItem('categories', filteredCats);
+      }
+    }
+
+    // Migration to v8: Update "Đồ uống" icon to "Coffee"
+    const catsAfterV7 = await getLocalArray('categories');
+    const updatedCats = catsAfterV7.map((c: any) => {
+      if (c.name === 'Đồ uống' && c.type === 'expense') {
+        return { ...c, icon: 'Coffee' };
+      }
+      return c;
+    });
+    await setItem('categories', updatedCats);
+    await setItem('data_version', 'v8');
   }
 
   const cats = await getLocalArray('categories');
@@ -146,8 +166,7 @@ const initializeDefaults = async () => {
       { id: 100, name: 'Ăn uống', type: 'expense', icon: 'Utensils', parent_id: null, is_default: true },
       { id: 101, name: 'Đi chợ, siêu thị', type: 'expense', icon: 'ShoppingCart', parent_id: 100, is_default: true },
       { id: 102, name: 'Ăn tiệm', type: 'expense', icon: 'UtensilsCrossed', parent_id: 100, is_default: true },
-      { id: 103, name: 'Cafe', type: 'expense', icon: 'Coffee', parent_id: 100, is_default: true },
-      { id: 104, name: 'Đồ uống', type: 'expense', icon: 'CupSoda', parent_id: 100, is_default: true },
+      { id: 104, name: 'Đồ uống', type: 'expense', icon: 'Coffee', parent_id: 100, is_default: true },
       { id: 105, name: 'Ăn sáng', type: 'expense', icon: 'Croissant', parent_id: 100, is_default: true },
       { id: 106, name: 'Ăn trưa', type: 'expense', icon: 'Soup', parent_id: 100, is_default: true },
       { id: 107, name: 'Ăn tối', type: 'expense', icon: 'Pizza', parent_id: 100, is_default: true },
@@ -292,6 +311,17 @@ export const api = {
     await setItem('currentUser_obj', null);
   },
 
+  forgotPassword: async (email: string): Promise<void> => {
+    await delay(1000);
+    const users = await getLocalArray('users');
+    const user = users.find((u: any) => u.email === email);
+    if (!user) {
+      throw new Error('Email không tồn tại trong hệ thống');
+    }
+    // In a real app, this would send an email
+    console.log(`Password reset link sent to ${email}`);
+  },
+
   getMe: async (): Promise<User> => {
     await delay(200);
     checkAuth();
@@ -326,12 +356,6 @@ export const api = {
     }
   },
 
-  socialLogin: async (data: any): Promise<AuthResponse> => {
-    return api.register({ ...data, password: 'social-mock-password' }).catch(() => {
-       return api.login({ email: data.email, password: 'social-mock-password' });
-    });
-  },
-
   // Transactions
   getTransactions: async (): Promise<Transaction[]> => {
     await delay(200);
@@ -347,6 +371,21 @@ export const api = {
     const newTx = { ...data, id: Date.now(), user_id: currentUser!.id, created_at: new Date().toISOString() } as Transaction;
     txs.unshift(newTx);
     await setItem('transactions', txs);
+
+    // Update account balance
+    if (data.account_id) {
+      const accs = await getLocalArray('accounts');
+      const index = accs.findIndex((a: any) => a.id === data.account_id);
+      if (index !== -1) {
+        if (data.type === 'income') {
+          accs[index].balance += data.amount;
+        } else {
+          accs[index].balance -= data.amount;
+        }
+        await setItem('accounts', accs);
+      }
+    }
+
     return newTx;
   },
 
@@ -354,6 +393,21 @@ export const api = {
     await delay(300);
     checkAuth();
     let txs = await getLocalArray('transactions');
+    const txToDelete = txs.find((t: any) => t.id === id);
+    
+    if (txToDelete && txToDelete.account_id) {
+      const accs = await getLocalArray('accounts');
+      const index = accs.findIndex((a: any) => a.id === txToDelete.account_id);
+      if (index !== -1) {
+        if (txToDelete.type === 'income') {
+          accs[index].balance -= txToDelete.amount;
+        } else {
+          accs[index].balance += txToDelete.amount;
+        }
+        await setItem('accounts', accs);
+      }
+    }
+
     txs = txs.filter((t: any) => t.id !== id);
     await setItem('transactions', txs);
   },
@@ -364,9 +418,42 @@ export const api = {
     const txs = await getLocalArray('transactions');
     const index = txs.findIndex((t: any) => t.id === id);
     if (index === -1) throw new Error('Not found');
+    
+    const oldTx = txs[index];
+    
+    // Revert old balance
+    if (oldTx.account_id) {
+      const accs = await getLocalArray('accounts');
+      const accIndex = accs.findIndex((a: any) => a.id === oldTx.account_id);
+      if (accIndex !== -1) {
+        if (oldTx.type === 'income') {
+          accs[accIndex].balance -= oldTx.amount;
+        } else {
+          accs[accIndex].balance += oldTx.amount;
+        }
+        await setItem('accounts', accs);
+      }
+    }
+
     txs[index] = { ...txs[index], ...data };
+    const updatedTx = txs[index];
+
+    // Apply new balance
+    if (updatedTx.account_id) {
+      const accs = await getLocalArray('accounts');
+      const accIndex = accs.findIndex((a: any) => a.id === updatedTx.account_id);
+      if (accIndex !== -1) {
+        if (updatedTx.type === 'income') {
+          accs[accIndex].balance += updatedTx.amount;
+        } else {
+          accs[accIndex].balance -= updatedTx.amount;
+        }
+        await setItem('accounts', accs);
+      }
+    }
+
     await setItem('transactions', txs);
-    return txs[index];
+    return updatedTx;
   },
 
   // Budgets
@@ -471,13 +558,23 @@ export const api = {
   // Categories
   getCategories: async (): Promise<Category[]> => {
     await delay(200);
-    return getLocalArray('categories');
+    checkAuth();
+    const cats = await getLocalArray('categories');
+    return cats.filter((c: any) => !c.is_deleted && (c.is_default || c.user_id === currentUser!.id));
   },
 
   addCategory: async (data: Partial<Category>): Promise<Category> => {
     await delay(300);
+    checkAuth();
     const cats = await getLocalArray('categories');
-    const newCat = { ...data, id: Date.now(), created_at: new Date().toISOString() } as Category;
+    const newCat = { 
+      ...data, 
+      id: Date.now(), 
+      is_default: false,
+      user_id: currentUser!.id,
+      is_deleted: false,
+      created_at: new Date().toISOString() 
+    } as Category;
     cats.push(newCat);
     await setItem('categories', cats);
     return newCat;
@@ -485,8 +582,9 @@ export const api = {
 
   updateCategory: async (id: number, data: Partial<Category>): Promise<void> => {
     await delay(300);
+    checkAuth();
     const cats = await getLocalArray('categories');
-    const index = cats.findIndex((c: any) => c.id === id);
+    const index = cats.findIndex((c: any) => c.id === id && c.user_id === currentUser!.id && !c.is_default);
     if (index !== -1) {
       cats[index] = { ...cats[index], ...data };
       await setItem('categories', cats);
@@ -495,9 +593,13 @@ export const api = {
 
   deleteCategory: async (id: number): Promise<void> => {
     await delay(300);
-    let cats = await getLocalArray('categories');
-    cats = cats.filter((c: any) => c.id !== id);
-    await setItem('categories', cats);
+    checkAuth();
+    const cats = await getLocalArray('categories');
+    const index = cats.findIndex((c: any) => c.id === id && c.user_id === currentUser!.id && !c.is_default);
+    if (index !== -1) {
+      cats[index].is_deleted = true;
+      await setItem('categories', cats);
+    }
   },
 
   // Accounts
@@ -530,5 +632,108 @@ export const api = {
     let accs = await getLocalArray('accounts');
     accs = accs.filter((a: any) => a.id !== id);
     await setItem('accounts', accs);
+  },
+
+  transfer: async (fromAccountId: number, toAccountId: number, amount: number, note?: string): Promise<void> => {
+    await delay(500);
+    checkAuth();
+    const accs = await getLocalArray('accounts');
+    const fromIndex = accs.findIndex((a: any) => a.id === fromAccountId);
+    const toIndex = accs.findIndex((a: any) => a.id === toAccountId);
+    
+    if (fromIndex === -1 || toIndex === -1) throw new Error('Account not found');
+    
+    accs[fromIndex].balance -= amount;
+    accs[toIndex].balance += amount;
+    
+    await setItem('accounts', accs);
+    
+    // Add transactions for history
+    const txs = await getLocalArray('transactions');
+    const now = new Date().toISOString();
+    
+    const expenseTx = {
+      id: Date.now(),
+      user_id: currentUser!.id,
+      type: 'expense',
+      amount: amount,
+      category: 'Chuyển khoản',
+      account_id: fromAccountId,
+      date: now.split('T')[0],
+      note: note || `Chuyển đến ${accs[toIndex].name}`,
+      created_at: now
+    };
+    
+    const incomeTx = {
+      id: Date.now() + 1,
+      user_id: currentUser!.id,
+      type: 'income',
+      amount: amount,
+      category: 'Chuyển khoản',
+      account_id: toAccountId,
+      date: now.split('T')[0],
+      note: note || `Nhận từ ${accs[fromIndex].name}`,
+      created_at: now
+    };
+    
+    txs.unshift(expenseTx, incomeTx);
+    await setItem('transactions', txs);
+  },
+
+  // Notifications
+  getVapidKey: async (): Promise<string> => {
+    const res = await fetch('/api/notifications/vapid-key');
+    const data = await res.json();
+    return data.publicKey;
+  },
+
+  subscribeNotifications: async (subscription: any): Promise<void> => {
+    const token = localStorage.getItem('auth_token');
+    await fetch('/api/notifications/subscribe', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ subscription })
+    });
+  },
+
+  unsubscribeNotifications: async (subscription: any): Promise<void> => {
+    const token = localStorage.getItem('auth_token');
+    await fetch('/api/notifications/unsubscribe', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ subscription })
+    });
+  },
+
+  getGoogleAuthUrl: async (): Promise<{ url: string }> => {
+    const origin = window.location.origin;
+    const res = await fetch(`/api/auth/google/url?origin=${encodeURIComponent(origin)}`);
+    if (!res.ok) {
+      const errorText = await res.text();
+      throw new Error(`Google Auth URL Error (${res.status}): ${errorText}`);
+    }
+    return res.json();
+  },
+
+  getFacebookAuthUrl: async (): Promise<{ url: string }> => {
+    const origin = window.location.origin;
+    const res = await fetch(`/api/auth/facebook/url?origin=${encodeURIComponent(origin)}`);
+    if (!res.ok) {
+      const errorText = await res.text();
+      throw new Error(`Facebook Auth URL Error (${res.status}): ${errorText}`);
+    }
+    return res.json();
+  },
+
+  setAuth: async (token: string, user: User): Promise<void> => {
+    localStorage.setItem('auth_token', token);
+    currentUser = user;
+    await setItem('currentUser_obj', user);
   },
 };

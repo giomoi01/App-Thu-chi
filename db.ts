@@ -193,4 +193,19 @@ if (userVersion < 4) {
   db.pragma('user_version = 4');
 }
 
+// Migration 4 -> 5 (Push Notifications)
+if (userVersion < 5) {
+  db.exec(`
+    ALTER TABLE users ADD COLUMN last_activity DATETIME DEFAULT CURRENT_TIMESTAMP;
+    
+    CREATE TABLE IF NOT EXISTS push_subscriptions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL REFERENCES users(id),
+      subscription_json TEXT NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+  db.pragma('user_version = 5');
+}
+
 export default db;

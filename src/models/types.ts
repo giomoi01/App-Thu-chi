@@ -38,6 +38,8 @@ export interface Category {
   name: string;
   icon: string | null;
   is_default: boolean;
+  user_id?: number;
+  is_deleted?: boolean;
   created_at: string;
 }
 

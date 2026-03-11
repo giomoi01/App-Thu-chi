@@ -256,7 +256,7 @@ export default function AccountManager({ viewModel, onClose }: { viewModel: Retu
       {confirmDialog && (
         <div className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-xl">
-            <h3 className="text-lg font-bold text-gray-800 mb-2">{t.confirmDeleteAcc || 'Xác nhận xóa'}</h3>
+            <h3 className="text-lg font-bold text-gray-800 mb-2">{t.confirmDelete || 'Xác nhận xóa'}</h3>
             <p className="text-gray-600 mb-6">{confirmDialog.message}</p>
             <div className="flex gap-3">
               <button 
@@ -279,7 +279,7 @@ export default function AccountManager({ viewModel, onClose }: { viewModel: Retu
       {alertDialog && (
         <div className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-xl">
-            <h3 className="text-lg font-bold text-gray-800 mb-2">{t.notification || 'Thông báo'}</h3>
+            <h3 className="text-lg font-bold text-gray-800 mb-2">{t.notifications || 'Thông báo'}</h3>
             <p className="text-gray-600 mb-6">{alertDialog.message}</p>
             <button 
               onClick={() => setAlertDialog(null)}

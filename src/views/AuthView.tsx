@@ -1,52 +1,80 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { Mail, Lock, User, LogIn, UserPlus, Github, Chrome, Facebook, Coins, Eye, EyeOff } from 'lucide-react';
 import { useFinanceViewModel } from '../viewmodels/useFinanceViewModel';
 import { translations } from '../utils/translations';
+import { api } from '../services/api';
 
 export default function AuthView({ viewModel }: { viewModel: ReturnType<typeof useFinanceViewModel> }) {
-  const { login, register, socialLogin, getSetting, updateSetting } = viewModel;
-  const [isLogin, setIsLogin] = useState(true);
+  const { login, register, forgotPassword, setAuth, getSetting, updateSetting } = viewModel;
+  const [view, setView] = useState<'login' | 'register' | 'forgotPassword'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [fullName, setFullName] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
 
   const language = getSetting('language', 'vi');
   const t = translations[language] || translations['vi'];
 
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'OAUTH_SUCCESS') {
+        const { token, user } = event.data;
+        setAuth(token, user);
+      }
+    };
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, [setAuth]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError(null);
+    setMessage(null);
     
+    if (view === 'forgotPassword') {
+      if (!email.trim()) {
+        setError(t.fillEmailPassword); // Or a more specific one if available
+        return;
+      }
+      setLoading(true);
+      const success = await forgotPassword(email);
+      setLoading(false);
+      if (success) {
+        setMessage(t.resetLinkSent);
+      }
+      return;
+    }
+
     if (!email.trim() || !password.trim()) {
-      setError(language === 'vi' ? 'Vui lòng nhập đầy đủ email và mật khẩu' : 'Please enter email and password');
+      setError(t.fillEmailPassword);
       return;
     }
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email.trim())) {
-      setError(language === 'vi' ? 'Định dạng email không hợp lệ' : 'Invalid email format');
+      setError(t.invalidEmail);
       return;
     }
 
     setLoading(true);
-    setError(null);
 
     try {
       let success = false;
-      if (isLogin) {
+      if (view === 'login') {
         success = await login({ email, password });
       } else {
         success = await register({ email, password, full_name: fullName });
       }
 
       if (!success) {
-        setError(isLogin ? (language === 'vi' ? 'Email hoặc mật khẩu không đúng' : 'Incorrect email or password') : (language === 'vi' ? 'Đăng ký thất bại' : 'Registration failed'));
+        setError(view === 'login' ? t.loginFailed : t.registerFailed);
       }
     } catch (err: any) {
-      setError(err.message || (isLogin ? (language === 'vi' ? 'Email hoặc mật khẩu không đúng' : 'Incorrect email or password') : (language === 'vi' ? 'Đăng ký thất bại' : 'Registration failed')));
+      setError(err.message || (view === 'login' ? t.loginFailed : t.registerFailed));
     } finally {
       setLoading(false);
     }
@@ -54,15 +82,47 @@ export default function AuthView({ viewModel }: { viewModel: ReturnType<typeof u
 
   const handleSocialLogin = async (provider: string) => {
     setLoading(true);
-    const success = await socialLogin({
-      provider,
-      email: `${provider}_user@example.com`,
-      full_name: `${provider.charAt(0).toUpperCase() + provider.slice(1)} User`,
-      avatar_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${provider}`,
-      social_id: `mock_${provider}_id`
-    });
-    if (!success) setError(language === 'vi' ? `${provider} đăng nhập thất bại` : `${provider} login failed`);
-    setLoading(false);
+    setError(null);
+    setMessage(null);
+    
+    // Mở cửa sổ mới ngay lập tức để tránh bị trình duyệt mobile chặn (do mất user gesture sau await)
+    const width = 600;
+    const height = 700;
+    const left = window.screenX + (window.outerWidth - width) / 2;
+    const top = window.screenY + (window.outerHeight - height) / 2;
+    
+    // Mở một cửa sổ trắng trước để giữ user gesture
+    const authWindow = window.open('', 'oauth_popup', `width=${width},height=${height},left=${left},top=${top}`);
+    
+    if (!authWindow) {
+      setError(t.popupBlocked);
+      setLoading(false);
+      return;
+    }
+
+    try {
+      let urlData;
+      
+      if (provider === 'google') {
+        urlData = await api.getGoogleAuthUrl();
+      } else if (provider === 'facebook') {
+        urlData = await api.getFacebookAuthUrl();
+      }
+
+      if (urlData?.url) {
+        authWindow.location.href = urlData.url;
+      } else {
+        authWindow.close();
+        throw new Error(t.failedGetAuthUrl);
+      }
+    } catch (err: any) {
+      if (authWindow) authWindow.close();
+      console.error(`${provider} auth error:`, err);
+      const providerName = provider.charAt(0).toUpperCase() + provider.slice(1);
+      setError(`${providerName} error: ${err.message || 'Connection error'}`);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -76,6 +136,14 @@ export default function AuthView({ viewModel }: { viewModel: ReturnType<typeof u
         >
           <option value="vi">Tiếng Việt</option>
           <option value="en">English</option>
+          <option value="fr">Français</option>
+          <option value="es">Español</option>
+          <option value="zh">中文</option>
+          <option value="ja">日本語</option>
+          <option value="ko">한국어</option>
+          <option value="it">Italiano</option>
+          <option value="pt">Português</option>
+          <option value="ru">Русский</option>
         </select>
       </div>
 
@@ -86,20 +154,22 @@ export default function AuthView({ viewModel }: { viewModel: ReturnType<typeof u
       >
         <div className="p-8">
           <div className="flex flex-col items-center mb-8">
-            <div className="w-20 h-20 bg-yellow-400 rounded-2xl flex items-center justify-center shadow-lg mb-4">
-              <Coins size={48} className="text-red-600" />
+            <div className="w-20 h-20 bg-white rounded-2xl flex items-center justify-center shadow-lg mb-4 overflow-hidden border-2 border-yellow-400">
+              <img src="/favicon.svg" alt="e-Money" className="w-full h-full object-contain p-2" />
             </div>
-            <h1 className="text-2xl font-bold text-gray-800">Thần Tài</h1>
-            <p className="text-gray-500 text-sm">{isLogin ? (language === 'vi' ? 'Chào mừng bạn trở lại!' : 'Welcome back!') : (language === 'vi' ? 'Bắt đầu quản lý tài chính ngay hôm nay' : 'Start managing your finances today')}</p>
+            <h1 className="text-2xl font-bold text-gray-800">e-Money</h1>
+            <p className="text-gray-500 text-sm">
+              {view === 'login' ? t.welcomeBack : view === 'register' ? t.startManagingToday : t.resetPassword}
+            </p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            {!isLogin && (
+            {view === 'register' && (
               <div className="relative">
                 <User className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
                 <input
                   type="text"
-                  placeholder={language === 'vi' ? "Họ và tên" : "Full Name"}
+                  placeholder={t.fullName}
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
                   className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 transition-all"
@@ -112,7 +182,7 @@ export default function AuthView({ viewModel }: { viewModel: ReturnType<typeof u
               <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
               <input
                 type="email"
-                placeholder="Email"
+                placeholder={t.email}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 transition-all"
@@ -120,26 +190,41 @@ export default function AuthView({ viewModel }: { viewModel: ReturnType<typeof u
               />
             </div>
 
-            <div className="relative">
-              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
-              <input
-                type={showPassword ? "text" : "password"}
-                placeholder={language === 'vi' ? "Mật khẩu" : "Password"}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full pl-10 pr-12 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 transition-all"
-                required
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-              >
-                {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-              </button>
-            </div>
+            {view !== 'forgotPassword' && (
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
+                <input
+                  type={showPassword ? "text" : "password"}
+                  placeholder={t.password}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full pl-10 pr-12 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 transition-all"
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                </button>
+              </div>
+            )}
+
+            {view === 'login' && (
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setView('forgotPassword')}
+                  className="text-xs text-red-600 hover:underline"
+                >
+                  {t.forgotPassword}
+                </button>
+              </div>
+            )}
 
             {error && <p className="text-red-500 text-xs text-center">{error}</p>}
+            {message && <p className="text-green-500 text-xs text-center">{message}</p>}
 
             <button
               type="submit"
@@ -149,43 +234,52 @@ export default function AuthView({ viewModel }: { viewModel: ReturnType<typeof u
               {loading ? (
                 <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
               ) : (
-                isLogin ? <><LogIn size={20} /> {language === 'vi' ? 'Đăng nhập' : 'Login'}</> : <><UserPlus size={20} /> {language === 'vi' ? 'Đăng ký' : 'Register'}</>
+                view === 'login' ? <><LogIn size={20} /> {t.login}</> : 
+                view === 'register' ? <><UserPlus size={20} /> {t.register}</> :
+                <>{t.sendResetLink}</>
               )}
             </button>
           </form>
 
-          <div className="mt-8">
-            <div className="relative flex items-center justify-center mb-6">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-100"></div>
+          {view !== 'forgotPassword' && (
+            <div className="mt-8">
+              <div className="relative flex items-center justify-center mb-6">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-gray-100"></div>
+                </div>
+                <span className="relative px-4 bg-white text-gray-400 text-xs uppercase tracking-widest">{t.orLoginWith}</span>
               </div>
-              <span className="relative px-4 bg-white text-gray-400 text-xs uppercase tracking-widest">{language === 'vi' ? 'Hoặc đăng nhập với' : 'Or login with'}</span>
-            </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <button
-                onClick={() => handleSocialLogin('google')}
-                className="flex items-center justify-center gap-2 py-2.5 border border-gray-100 rounded-xl hover:bg-gray-50 transition-all"
-              >
-                <Chrome size={18} className="text-red-500" />
-                <span className="text-sm font-medium text-gray-600">Google</span>
-              </button>
-              <button
-                onClick={() => handleSocialLogin('facebook')}
-                className="flex items-center justify-center gap-2 py-2.5 border border-gray-100 rounded-xl hover:bg-gray-50 transition-all"
-              >
-                <Facebook size={18} className="text-blue-600" />
-                <span className="text-sm font-medium text-gray-600">Facebook</span>
-              </button>
+              <div className="grid grid-cols-2 gap-4">
+                <button
+                  onClick={() => handleSocialLogin('google')}
+                  className="flex items-center justify-center gap-2 py-2.5 border border-gray-100 rounded-xl hover:bg-gray-50 transition-all"
+                >
+                  <Chrome size={18} className="text-red-500" />
+                  <span className="text-sm font-medium text-gray-600">Google</span>
+                </button>
+                <button
+                  onClick={() => handleSocialLogin('facebook')}
+                  className="flex items-center justify-center gap-2 py-2.5 border border-gray-100 rounded-xl hover:bg-gray-50 transition-all"
+                >
+                  <Facebook size={18} className="text-blue-600" />
+                  <span className="text-sm font-medium text-gray-600">Facebook</span>
+                </button>
+              </div>
             </div>
-          </div>
+          )}
 
           <div className="mt-8 text-center">
             <button
-              onClick={() => setIsLogin(!isLogin)}
+              onClick={() => {
+                setError(null);
+                setMessage(null);
+                if (view === 'forgotPassword') setView('login');
+                else setView(view === 'login' ? 'register' : 'login');
+              }}
               className="text-sm text-gray-500 hover:text-red-600 transition-all"
             >
-              {isLogin ? (language === 'vi' ? 'Chưa có tài khoản? Đăng ký ngay' : "Don't have an account? Register now") : (language === 'vi' ? 'Đã có tài khoản? Đăng nhập' : 'Already have an account? Login')}
+              {view === 'login' ? t.noAccountYet : view === 'register' ? t.alreadyHaveAccount : t.backToLogin}
             </button>
           </div>
         </div>

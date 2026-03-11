@@ -13,14 +13,11 @@ export default function AddTab({ viewModel, onClose, onSaveSuccess }: { viewMode
   const [displayAmount, setDisplayAmount] = useState('');
   const [amount, setAmount] = useState(0);
   const [category, setCategory] = useState('');
-  const [date, setDate] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [date, setDate] = useState('');
   const [note, setNote] = useState('');
   const [accountId, setAccountId] = useState<number | ''>('');
   const [status, setStatus] = useState<'idle' | 'success' | 'error' | 'processing' | 'listening'>('idle');
   const [errorMsg, setErrorMsg] = useState('');
-  
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const audioInputRef = useRef<HTMLInputElement>(null);
 
   const language = getSetting('language', 'vi') as keyof typeof translations;
   const currency = getSetting('currency', 'VND');
@@ -125,6 +122,10 @@ export default function AddTab({ viewModel, onClose, onSaveSuccess }: { viewMode
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
+  const audioInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+
+  const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 
   // --- Voice Input Logic ---
   const handleVoiceInput = async () => {
@@ -136,11 +137,25 @@ export default function AddTab({ viewModel, onClose, onSaveSuccess }: { viewMode
     }
 
     try {
+      // Check for browser support
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        throw new Error("getUserMedia not supported");
+        if (audioInputRef.current) {
+          audioInputRef.current.click();
+          return;
+        }
+        throw new Error("Trình duyệt của bạn không hỗ trợ ghi âm trực tiếp.");
       }
+
+      // Explicitly request permission
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const recorder = new MediaRecorder(stream);
+      
+      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') 
+        ? 'audio/webm;codecs=opus' 
+        : MediaRecorder.isTypeSupported('audio/ogg;codecs=opus')
+          ? 'audio/ogg;codecs=opus'
+          : 'audio/webm';
+
+      const recorder = new MediaRecorder(stream, { mimeType });
       audioChunksRef.current = [];
 
       recorder.ondataavailable = (e) => {
@@ -148,6 +163,10 @@ export default function AddTab({ viewModel, onClose, onSaveSuccess }: { viewMode
       };
 
       recorder.onstop = async () => {
+        if (audioChunksRef.current.length === 0) {
+          setStatus('idle');
+          return;
+        }
         setStatus('processing');
         const audioBlob = new Blob(audioChunksRef.current, { type: recorder.mimeType || 'audio/webm' });
         const reader = new FileReader();
@@ -162,9 +181,24 @@ export default function AddTab({ viewModel, onClose, onSaveSuccess }: { viewMode
       recorder.start();
       mediaRecorderRef.current = recorder;
       setStatus('listening');
-    } catch (err) {
-      console.warn("Falling back to file input for audio:", err);
-      audioInputRef.current?.click();
+    } catch (err: any) {
+      console.warn("Voice input error:", err);
+      
+      // If permission denied or other error, try to use file input fallback
+      if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError' || err.name === 'SecurityError') {
+        if (audioInputRef.current) {
+          audioInputRef.current.click();
+        } else {
+          alert("Bạn đã từ chối quyền truy cập Micro. Vui lòng cấp quyền trong cài đặt trình duyệt để sử dụng tính năng này.");
+        }
+        setStatus('idle');
+      } else if (audioInputRef.current) {
+        // Fallback to file picker if getUserMedia is not supported or fails for other reasons
+        audioInputRef.current.click();
+      } else {
+        alert(`Lỗi Micro: ${err.message || "Không thể khởi động ghi âm"}`);
+        setStatus('idle');
+      }
     }
   };
 
@@ -180,11 +214,11 @@ export default function AddTab({ viewModel, onClose, onSaveSuccess }: { viewMode
         await parseAudioWithGemini(base64Data, file.type);
       };
       reader.readAsDataURL(file);
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
       setStatus('error');
-      setErrorMsg(t.voiceError);
-      setTimeout(() => setStatus('idle'), 3000);
+      setErrorMsg(error.message || t.voiceError);
+      setTimeout(() => setStatus('idle'), 5000);
     }
   };
 
@@ -193,6 +227,14 @@ export default function AddTab({ viewModel, onClose, onSaveSuccess }: { viewMode
       const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
       const categoryNames = categories.map(c => c.name).join(', ');
       
+      let cleanMimeType = mimeType || 'audio/webm';
+      if (cleanMimeType.includes(';')) {
+        cleanMimeType = cleanMimeType.split(';')[0];
+      }
+      if (!cleanMimeType.startsWith('audio/')) {
+         cleanMimeType = 'audio/webm';
+      }
+      
       const response = await ai.models.generateContent({
         model: "gemini-3-flash-preview",
         contents: {
@@ -200,7 +242,7 @@ export default function AddTab({ viewModel, onClose, onSaveSuccess }: { viewMode
             {
               inlineData: {
                 data: base64Data,
-                mimeType: mimeType || 'audio/webm'
+                mimeType: cleanMimeType
               }
             },
             {
@@ -240,17 +282,33 @@ export default function AddTab({ viewModel, onClose, onSaveSuccess }: { viewMode
       if (data.type) setType(data.type as 'expense' | 'income');
       
       setStatus('idle');
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
       setStatus('error');
-      setErrorMsg(t.voiceError);
-      setTimeout(() => setStatus('idle'), 3000);
+      setErrorMsg(error.message || t.voiceError);
+      setTimeout(() => setStatus('idle'), 5000);
     }
   };
 
   // --- OCR Logic ---
-  const handleScanReceipt = () => {
-    fileInputRef.current?.click();
+  const handleScanClick = async () => {
+    // On mobile, direct file input with capture="environment" is much more reliable
+    // than trying to use getUserMedia in an iframe.
+    if (isMobile) {
+      cameraInputRef.current?.click();
+      return;
+    }
+
+    try {
+      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+        stream.getTracks().forEach(track => track.stop());
+      }
+      cameraInputRef.current?.click();
+    } catch (err: any) {
+      console.warn("Camera permission error:", err);
+      cameraInputRef.current?.click();
+    }
   };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -347,40 +405,46 @@ export default function AddTab({ viewModel, onClose, onSaveSuccess }: { viewMode
         </div>
 
         <div className="p-5">
-          {/* AI Tools */}
+          {/* AI Tools - Temporarily hidden per user request */}
+          {/* 
           <div className="flex gap-2 mb-4">
             <button 
+              type="button"
               onClick={handleVoiceInput}
-              disabled={status !== 'idle'}
-              className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-indigo-50 text-indigo-600 rounded-xl text-xs font-semibold hover:bg-indigo-100 transition-colors disabled:opacity-50"
+              disabled={status !== 'idle' && status !== 'listening'}
+              className={`flex-1 flex items-center justify-center gap-2 py-2.5 bg-indigo-50 text-indigo-600 rounded-xl text-xs font-semibold hover:bg-indigo-100 transition-colors disabled:opacity-50 ${status === 'listening' ? 'ring-2 ring-indigo-500 animate-pulse' : ''}`}
             >
               {status === 'listening' ? <Loader2 className="animate-spin" size={16} /> : <Mic size={16} />}
-              {status === 'listening' ? t.listening : t.voiceInput}
+              {status === 'listening' ? t.listening : (status === 'processing' ? t.processing : t.voiceInput)}
             </button>
+
             <button 
-              onClick={handleScanReceipt}
+              type="button"
+              onClick={handleScanClick}
               disabled={status !== 'idle'}
               className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-emerald-50 text-emerald-600 rounded-xl text-xs font-semibold hover:bg-emerald-100 transition-colors disabled:opacity-50"
             >
               {status === 'processing' ? <Loader2 className="animate-spin" size={16} /> : <Camera size={16} />}
               {status === 'processing' ? t.processing : t.scanReceipt}
             </button>
+
             <input 
+              ref={audioInputRef}
               type="file" 
-              ref={fileInputRef} 
-              className="hidden" 
-              accept="image/*" 
-              onChange={handleFileChange}
-            />
-            <input 
-              type="file" 
-              ref={audioInputRef} 
               className="hidden" 
               accept="audio/*" 
-              capture="microphone"
               onChange={handleAudioFileChange}
             />
+            <input 
+              ref={cameraInputRef}
+              type="file" 
+              className="hidden" 
+              accept="image/*" 
+              capture="environment"
+              onChange={handleFileChange}
+            />
           </div>
+          */}
 
           {/* Type Toggle */}
           <div className="flex bg-gray-100 p-1 rounded-xl mb-4">
@@ -436,7 +500,8 @@ export default function AddTab({ viewModel, onClose, onSaveSuccess }: { viewMode
                         ...children.map(child => ({
                           value: child.name,
                           label: translateName(child.name),
-                          icon: <span className={type === 'expense' ? 'text-red-500' : 'text-green-500'}>{getCategoryIcon(child.icon)}</span>
+                          icon: <span className={type === 'expense' ? 'text-red-500' : 'text-green-500'}>{getCategoryIcon(child.icon)}</span>,
+                          level: 1
                         }))
                       ];
                     })}
@@ -473,23 +538,15 @@ export default function AddTab({ viewModel, onClose, onSaveSuccess }: { viewMode
               <div className="flex-1">
                 <label className="block text-[10px] font-medium text-gray-400 uppercase tracking-wider mb-1">{t.date}</label>
                 <div className="relative">
-                  <div className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-sm flex items-center justify-between gap-1.5 h-[38px]">
-                    <span className="truncate">{date ? formatDate(date) : <span className="text-gray-400">{dateFormat.toLowerCase()}</span>}</span>
-                    <Calendar size={16} className="text-gray-400 flex-shrink-0" />
-                  </div>
                   <input
                     type="date"
                     value={date}
-                    onClick={(e) => {
-                      try {
-                        if ('showPicker' in e.currentTarget) {
-                          e.currentTarget.showPicker();
-                        }
-                      } catch (err) {}
-                    }}
                     onChange={(e) => setDate(e.target.value)}
-                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                    className={`date-input-full-picker w-full bg-gray-50 border border-gray-200 rounded-xl pl-3 pr-10 py-2 text-sm h-[38px] focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all ${!date ? 'text-transparent' : 'text-gray-800'}`}
                   />
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
+                    <Calendar size={16} />
+                  </div>
                 </div>
               </div>
             </div>

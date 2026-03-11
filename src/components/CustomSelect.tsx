@@ -7,6 +7,7 @@ interface Option {
   icon?: React.ReactNode;
   isGroup?: boolean;
   disabled?: boolean;
+  level?: number;
 }
 
 interface CustomSelectProps {
@@ -74,6 +75,7 @@ export default function CustomSelect({ value, onChange, options, placeholder, cl
                   setIsOpen(false);
                 }}
                 className={`w-full text-left px-3 py-2 text-sm flex items-center gap-2 hover:bg-red-50 transition-colors ${opt.disabled ? 'opacity-50 cursor-not-allowed' : ''} ${value === opt.value ? 'bg-red-50 text-red-600 font-medium' : 'text-gray-700'}`}
+                style={opt.level ? { paddingLeft: `${(opt.level + 1) * 0.75}rem` } : undefined}
               >
                 {opt.icon && <span className="flex-shrink-0 scale-90">{opt.icon}</span>}
                 <span className="truncate">{opt.label}</span>

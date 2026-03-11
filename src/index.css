@@ -1,5 +1,18 @@
 @import "tailwindcss";
 
+/* Make native date picker indicator cover the entire input so clicking anywhere opens it */
+.date-input-full-picker::-webkit-calendar-picker-indicator {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+
 .theme-dark {
   filter: invert(0.9) hue-rotate(180deg) contrast(1.1);
 }

@@ -27,6 +27,9 @@ export default function HistoryTab({ viewModel }: { viewModel: ReturnType<typeof
   const [editDisplayAmount, setEditDisplayAmount] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [displayLimit, setDisplayLimit] = useState(15);
+  const observerTarget = React.useRef<HTMLDivElement>(null);
+  const startInputRef = React.useRef<HTMLInputElement>(null);
+  const endInputRef = React.useRef<HTMLInputElement>(null);
 
   const language = getSetting('language', 'vi');
   const currency = getSetting('currency', 'VND');
@@ -56,18 +59,11 @@ export default function HistoryTab({ viewModel }: { viewModel: ReturnType<typeof
   }, [filter, search, timeFilter, customStart, customEnd]);
 
   useEffect(() => {
-    const main = document.querySelector('main');
-    if (!main) return;
-
-    const handleScroll = () => {
-      if (main.scrollTop + main.clientHeight >= main.scrollHeight - 100) {
-        setDisplayLimit(prev => prev + 15);
-      }
-    };
-
-    main.addEventListener('scroll', handleScroll);
-    return () => main.removeEventListener('scroll', handleScroll);
-  }, []);
+    if (timeFilter === 'custom') {
+      setCustomStart('');
+      setCustomEnd('');
+    }
+  }, [timeFilter]);
 
   const formatEditAmountInput = (val: string) => {
     const cleanVal = val.replace(/\D/g, '');
@@ -127,6 +123,30 @@ export default function HistoryTab({ viewModel }: { viewModel: ReturnType<typeof
   }, [transactions, filter, search, timeFilter, customStart, customEnd, sortBy]);
 
   const displayedTransactions = useMemo(() => filteredTransactions.slice(0, displayLimit), [filteredTransactions, displayLimit]);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && displayedTransactions.length < filteredTransactions.length) {
+          setDisplayLimit(prev => prev + 15);
+        }
+      },
+      { 
+        threshold: 0.1,
+        rootMargin: '100px' // Trigger slightly before reaching the bottom
+      }
+    );
+
+    if (observerTarget.current) {
+      observer.observe(observerTarget.current);
+    }
+
+    return () => {
+      if (observerTarget.current) {
+        observer.unobserve(observerTarget.current);
+      }
+    };
+  }, [displayedTransactions.length, filteredTransactions.length]);
 
   // Calculate data for pie chart
   const chartData = useMemo(() => {
@@ -237,24 +257,44 @@ export default function HistoryTab({ viewModel }: { viewModel: ReturnType<typeof
 
       {/* Custom Date Range Inputs */}
       {timeFilter === 'custom' && (
-        <div className="flex space-x-2 bg-white p-3 rounded-xl shadow-sm border border-gray-100">
+        <div className="flex space-x-2 bg-white p-3 rounded-xl shadow-sm border border-gray-100 animate-in fade-in slide-in-from-top-2 duration-200">
           <div className="flex-1">
-            <label className="block text-xs text-gray-500 mb-1">{t.startDate}</label>
-            <input 
-              type="date" 
-              value={customStart}
-              onChange={(e) => setCustomStart(e.target.value)}
-              className="w-full text-sm border border-gray-200 rounded p-1"
-            />
+            <label className="block text-[10px] font-medium text-gray-400 uppercase tracking-wider mb-1">
+              {t.startDate}
+            </label>
+            <div className="relative">
+              <input 
+                type="date" 
+                value={customStart}
+                onChange={(e) => {
+                  setCustomStart(e.target.value);
+                  if (customEnd && e.target.value > customEnd) {
+                    setCustomEnd('');
+                  }
+                }}
+                className={`date-input-full-picker w-full bg-gray-50 border border-gray-200 rounded-lg pl-3 pr-10 py-2 text-sm h-[38px] focus:outline-none focus:ring-1 focus:ring-red-500 transition-all ${!customStart ? 'text-transparent' : 'text-gray-800'}`}
+              />
+              <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
+                <Calendar size={14} />
+              </div>
+            </div>
           </div>
           <div className="flex-1">
-            <label className="block text-xs text-gray-500 mb-1">{t.endDate}</label>
-            <input 
-              type="date" 
-              value={customEnd}
-              onChange={(e) => setCustomEnd(e.target.value)}
-              className="w-full text-sm border border-gray-200 rounded p-1"
-            />
+            <label className="block text-[10px] font-medium text-gray-400 uppercase tracking-wider mb-1">
+              {t.endDate}
+            </label>
+            <div className="relative">
+              <input 
+                type="date" 
+                value={customEnd}
+                min={customStart}
+                onChange={(e) => setCustomEnd(e.target.value)}
+                className={`date-input-full-picker w-full bg-gray-50 border border-gray-200 rounded-lg pl-3 pr-10 py-2 text-sm h-[38px] focus:outline-none focus:ring-1 focus:ring-red-500 transition-all ${!customEnd ? 'text-transparent' : 'text-gray-800'}`}
+              />
+              <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
+                <Calendar size={14} />
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -371,6 +411,16 @@ export default function HistoryTab({ viewModel }: { viewModel: ReturnType<typeof
           </div>
         )}
       </div>
+
+      {/* Infinite Scroll Sentinel */}
+      {displayedTransactions.length < filteredTransactions.length && (
+        <div ref={observerTarget} className="py-6 flex justify-center items-center">
+          <div className="flex flex-col items-center space-y-2">
+            <div className="animate-spin rounded-full h-8 w-8 border-4 border-red-600 border-t-transparent"></div>
+            <span className="text-gray-400 text-xs font-medium">{t.loading || 'Đang tải thêm...'}</span>
+          </div>
+        </div>
+      )}
 
       {/* Edit Modal */}
       {editingTx && (

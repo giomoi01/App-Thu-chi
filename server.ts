@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import express from 'express';
 import { createServer as createViteServer } from 'vite';
 import db from './db';
@@ -8,8 +9,57 @@ import fs from 'fs';
 import path from 'path';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import webpush from 'web-push';
+import axios from 'axios';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'super-secret-key';
+
+// VAPID keys for push notifications
+// In production, these should be in .env
+let vapidKeys = {
+  publicKey: process.env.VAPID_PUBLIC_KEY,
+  privateKey: process.env.VAPID_PRIVATE_KEY
+};
+
+const isValidVapidKey = (key: string | undefined) => {
+  if (!key || key.trim() === '' || key === 'undefined') return false;
+  try {
+    // Basic check: should be base64url encoded
+    return key.length > 30; 
+  } catch (e) {
+    return false;
+  }
+};
+
+if (!isValidVapidKey(vapidKeys.publicKey) || !isValidVapidKey(vapidKeys.privateKey)) {
+  const generated = webpush.generateVAPIDKeys();
+  vapidKeys.publicKey = generated.publicKey;
+  vapidKeys.privateKey = generated.privateKey;
+  console.log('Generated new VAPID keys. Save these to your .env file:');
+  console.log('VAPID_PUBLIC_KEY=' + vapidKeys.publicKey);
+  console.log('VAPID_PRIVATE_KEY=' + vapidKeys.privateKey);
+}
+
+try {
+  webpush.setVapidDetails(
+    'mailto:example@yourdomain.com',
+    vapidKeys.publicKey!,
+    vapidKeys.privateKey!
+  );
+} catch (error) {
+  console.error('Failed to set VAPID details with provided keys, generating new ones...', error);
+  const generated = webpush.generateVAPIDKeys();
+  vapidKeys.publicKey = generated.publicKey;
+  vapidKeys.privateKey = generated.privateKey;
+  webpush.setVapidDetails(
+    'mailto:example@yourdomain.com',
+    vapidKeys.publicKey!,
+    vapidKeys.privateKey!
+  );
+  console.log('New VAPID keys generated and set:');
+  console.log('VAPID_PUBLIC_KEY=' + vapidKeys.publicKey);
+  console.log('VAPID_PRIVATE_KEY=' + vapidKeys.privateKey);
+}
 
 const upload = multer({ dest: 'uploads/' });
 
@@ -37,6 +87,14 @@ async function startServer() {
     jwt.verify(token, JWT_SECRET, (err: any, user: any) => {
       if (err) return res.status(403).json({ error: 'Forbidden' });
       req.user = user;
+      
+      // Update last activity
+      try {
+        db.prepare('UPDATE users SET last_activity = CURRENT_TIMESTAMP WHERE id = ?').run(user.id);
+      } catch (e) {
+        console.error('Failed to update last activity', e);
+      }
+      
       next();
     });
   };
@@ -123,6 +181,263 @@ async function startServer() {
     } catch (error) {
       res.status(500).json({ error: 'Failed to change password' });
     }
+  });
+
+  // OAuth Routes
+  const getBaseUrl = (req: any) => {
+    const host = req.get('x-forwarded-host') || req.get('host') || '';
+    
+    // Nếu đang chạy ở localhost
+    if (host.includes('localhost') || host.includes('127.0.0.1')) {
+      return `http://${host}`;
+    }
+
+    // Luôn sử dụng host hiện tại của request để đảm bảo redirect_uri khớp 100% với URL người dùng đang truy cập
+    // (Tránh lỗi khi người dùng truy cập link Shared nhưng APP_URL lại là link Dev)
+    const protocol = req.get('x-forwarded-proto') || (host.endsWith('.run.app') ? 'https' : 'http');
+    return `${protocol}://${host}`.replace(/\/$/, '');
+  };
+
+  app.get('/api/auth/google/url', (req, res) => {
+    const clientOrigin = req.query.origin as string;
+    const baseUrl = (clientOrigin && clientOrigin !== 'null' ? clientOrigin : getBaseUrl(req)).replace(/\/$/, '');
+    console.log(`[OAuth] Google Auth URL requested. Origin: ${clientOrigin}, Resolved BaseUrl: ${baseUrl}`);
+    
+    const rootUrl = 'https://accounts.google.com/o/oauth2/v2/auth';
+    const redirect_uri = `${baseUrl}/api/auth/google/callback`;
+    
+    // Encode baseUrl into state to ensure consistency in callback
+    const state = Buffer.from(JSON.stringify({ baseUrl })).toString('base64');
+
+    const options = {
+      redirect_uri,
+      client_id: (process.env.GOOGLE_CLIENT_ID || '').trim(),
+      access_type: 'offline',
+      response_type: 'code',
+      prompt: 'consent',
+      state,
+      scope: [
+        'https://www.googleapis.com/auth/userinfo.profile',
+        'https://www.googleapis.com/auth/userinfo.email',
+      ].join(' '),
+    };
+
+    const qs = new URLSearchParams(options);
+    const url = `${rootUrl}?${qs.toString()}`;
+    console.log('Step 1: Generated Google Auth URL with redirect_uri:', redirect_uri);
+    res.json({ url });
+  });
+
+  app.get('/api/auth/google/callback', async (req, res) => {
+    const code = req.query.code as string;
+    const stateStr = req.query.state as string;
+    
+    if (!code) {
+      console.error('Google OAuth Error: No code received in callback');
+      return res.status(400).send('Authentication failed: No code received');
+    }
+
+    // Recover baseUrl from state if possible, otherwise fallback to getBaseUrl
+    let baseUrl = getBaseUrl(req);
+    if (stateStr) {
+      try {
+        const decoded = JSON.parse(Buffer.from(stateStr, 'base64').toString());
+        if (decoded.baseUrl) {
+          baseUrl = decoded.baseUrl;
+          console.log('Recovered baseUrl from state:', baseUrl);
+        }
+      } catch (e) {
+        console.error('Failed to parse state from Google callback', e);
+      }
+    }
+
+    const rootUrl = 'https://oauth2.googleapis.com/token';
+    const redirect_uri = `${baseUrl}/api/auth/google/callback`;
+
+    const clientId = (process.env.GOOGLE_CLIENT_ID || '').trim();
+    const clientSecret = (process.env.GOOGLE_CLIENT_SECRET || '').trim();
+
+    if (!clientId || !clientSecret) {
+      console.error('Google OAuth Error: Missing GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET');
+      return res.status(500).send('Authentication failed: Server configuration error');
+    }
+
+    const options = {
+      code,
+      client_id: clientId,
+      client_secret: clientSecret,
+      redirect_uri,
+      grant_type: 'authorization_code',
+    };
+
+    try {
+      console.log('Step 2: Exchanging Google code for token...');
+      console.log('Using redirect_uri for exchange:', redirect_uri);
+      
+      const { data } = await axios({
+        method: 'post',
+        url: rootUrl,
+        data: new URLSearchParams(options).toString(),
+        headers: { 
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'Accept': 'application/json'
+        },
+      });
+
+      console.log('Token exchange successful, fetching user profile...');
+
+      const { data: profile } = await axios.get(
+        'https://www.googleapis.com/oauth2/v1/userinfo?alt=json',
+        { headers: { Authorization: `Bearer ${data.access_token}` } }
+      );
+
+      // Find or create user
+      let user = db.prepare('SELECT * FROM users WHERE email = ?').get(profile.email) as any;
+      if (!user) {
+        const stmt = db.prepare('INSERT INTO users (email, full_name, avatar_url, google_id) VALUES (?, ?, ?, ?)');
+        const info = stmt.run(profile.email, profile.name, profile.picture, profile.id);
+        user = db.prepare('SELECT * FROM users WHERE id = ?').get(info.lastInsertRowid);
+      } else {
+        db.prepare('UPDATE users SET google_id = ?, avatar_url = ? WHERE id = ?').run(profile.id, profile.picture, user.id);
+        user = db.prepare('SELECT * FROM users WHERE id = ?').get(user.id);
+      }
+
+      const token = jwt.sign({ id: user.id, email: user.email }, JWT_SECRET);
+      
+      res.send(`
+        <html>
+          <body>
+            <script>
+              window.opener.postMessage({ type: 'OAUTH_SUCCESS', token: '${token}', user: ${JSON.stringify(user)} }, '*');
+              window.close();
+            </script>
+          </body>
+        </html>
+      `);
+    } catch (error: any) {
+      console.error('Google OAuth Error Details:', error.response?.data || error.message);
+      res.status(500).send(`Authentication failed: ${JSON.stringify(error.response?.data || error.message)}`);
+    }
+  });
+
+  app.get('/api/auth/facebook/url', (req, res) => {
+    const clientOrigin = req.query.origin as string;
+    const baseUrl = (clientOrigin && clientOrigin !== 'null' ? clientOrigin : getBaseUrl(req)).replace(/\/$/, '');
+    console.log(`[OAuth] Facebook Auth URL requested. Origin: ${clientOrigin}, Resolved BaseUrl: ${baseUrl}`);
+    
+    const rootUrl = 'https://www.facebook.com/v12.0/dialog/oauth';
+    const redirect_uri = `${baseUrl}/api/auth/facebook/callback`;
+    
+    const state = Buffer.from(JSON.stringify({ baseUrl })).toString('base64');
+
+    const options = {
+      client_id: process.env.FACEBOOK_APP_ID || '',
+      redirect_uri,
+      scope: ['email', 'public_profile'].join(','),
+      response_type: 'code',
+      state,
+      auth_type: 'rerequest',
+      display: 'popup',
+    };
+
+    const qs = new URLSearchParams(options);
+    res.json({ url: `${rootUrl}?${qs.toString()}` });
+  });
+
+  app.get('/api/auth/facebook/callback', async (req, res) => {
+    const code = req.query.code as string;
+    const stateStr = req.query.state as string;
+    
+    let baseUrl = getBaseUrl(req);
+    if (stateStr) {
+      try {
+        const decoded = JSON.parse(Buffer.from(stateStr, 'base64').toString());
+        if (decoded.baseUrl) baseUrl = decoded.baseUrl;
+      } catch (e) {}
+    }
+
+    const rootUrl = 'https://graph.facebook.com/v12.0/oauth/access_token';
+    const redirect_uri = `${baseUrl}/api/auth/facebook/callback`;
+
+    const options = {
+      client_id: process.env.FACEBOOK_APP_ID || '',
+      client_secret: process.env.FACEBOOK_APP_SECRET || '',
+      redirect_uri,
+      code,
+    };
+
+    try {
+      console.log('Exchanging Facebook code for token...');
+      console.log('Redirect URI:', redirect_uri);
+      
+      const { data } = await axios.get(rootUrl, { params: options });
+      const { data: profile } = await axios.get(
+        `https://graph.facebook.com/me?fields=id,name,email,picture&access_token=${data.access_token}`
+      );
+
+      const email = profile.email || `${profile.id}@facebook.com`;
+      const avatar_url = profile.picture?.data?.url;
+
+      let user = db.prepare('SELECT * FROM users WHERE email = ?').get(email) as any;
+      if (!user) {
+        const stmt = db.prepare('INSERT INTO users (email, full_name, avatar_url, facebook_id) VALUES (?, ?, ?, ?)');
+        const info = stmt.run(email, profile.name, avatar_url, profile.id);
+        user = db.prepare('SELECT * FROM users WHERE id = ?').get(info.lastInsertRowid);
+      } else {
+        db.prepare('UPDATE users SET facebook_id = ?, avatar_url = ? WHERE id = ?').run(profile.id, avatar_url, user.id);
+        user = db.prepare('SELECT * FROM users WHERE id = ?').get(user.id);
+      }
+
+      const token = jwt.sign({ id: user.id, email: user.email }, JWT_SECRET);
+      
+      res.send(`
+        <html>
+          <body>
+            <script>
+              window.opener.postMessage({ type: 'OAUTH_SUCCESS', token: '${token}', user: ${JSON.stringify(user)} }, '*');
+              window.close();
+            </script>
+          </body>
+        </html>
+      `);
+    } catch (error) {
+      console.error('Facebook OAuth Error', error);
+      res.status(500).send('Authentication failed');
+    }
+  });
+
+  // Privacy Policy Route for Facebook/Google requirements
+  app.get('/privacy', (req, res) => {
+    res.send(`
+      <html>
+        <head>
+          <title>Chính sách quyền riêng tư - e-Money</title>
+          <style>
+            body { font-family: sans-serif; line-height: 1.6; max-width: 800px; margin: 40px auto; padding: 0 20px; color: #333; }
+            h1 { color: #d32f2f; }
+            h2 { border-bottom: 1px solid #eee; padding-bottom: 10px; margin-top: 30px; }
+          </style>
+        </head>
+        <body>
+          <h1>Chính sách quyền riêng tư</h1>
+          <p>Chào mừng bạn đến với ứng dụng e-Money. Chúng tôi cam kết bảo vệ thông tin cá nhân của bạn.</p>
+          
+          <h2>1. Thông tin chúng tôi thu thập</h2>
+          <p>Khi bạn đăng nhập bằng Google hoặc Facebook, chúng tôi chỉ thu thập các thông tin cơ bản như: Tên, Email và Ảnh đại diện để tạo tài khoản cho bạn.</p>
+          
+          <h2>2. Cách chúng tôi sử dụng thông tin</h2>
+          <p>Thông tin của bạn chỉ được sử dụng để định danh người dùng và cá nhân hóa trải nghiệm trong ứng dụng quản lý tài chính của bạn.</p>
+          
+          <h2>3. Bảo mật dữ liệu</h2>
+          <p>Chúng tôi không chia sẻ thông tin cá nhân của bạn với bất kỳ bên thứ ba nào. Dữ liệu của bạn được lưu trữ an toàn.</p>
+          
+          <h2>4. Quyền của bạn</h2>
+          <p>Bạn có quyền yêu cầu xóa tài khoản và toàn bộ dữ liệu liên quan bất cứ lúc nào thông qua phần cài đặt trong ứng dụng.</p>
+          
+          <p>Cập nhật lần cuối: 07/03/2026</p>
+        </body>
+      </html>
+    `);
   });
 
   // API Routes
@@ -683,6 +998,84 @@ async function startServer() {
       res.status(500).json({ error: 'Social login failed' });
     }
   });
+
+  // Notifications
+  app.get('/api/notifications/vapid-key', (req, res) => {
+    res.json({ publicKey: vapidKeys.publicKey });
+  });
+
+  app.post('/api/notifications/subscribe', authenticateToken, (req: any, res) => {
+    try {
+      const { subscription } = req.body;
+      const subscription_json = JSON.stringify(subscription);
+      
+      // Check if subscription already exists
+      const existing = db.prepare('SELECT id FROM push_subscriptions WHERE user_id = ? AND subscription_json = ?').get(req.user.id, subscription_json);
+      
+      if (!existing) {
+        db.prepare('INSERT INTO push_subscriptions (user_id, subscription_json) VALUES (?, ?)').run(req.user.id, subscription_json);
+      }
+      
+      res.status(201).json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to subscribe' });
+    }
+  });
+
+  app.post('/api/notifications/unsubscribe', authenticateToken, (req: any, res) => {
+    try {
+      const { subscription } = req.body;
+      const subscription_json = JSON.stringify(subscription);
+      db.prepare('DELETE FROM push_subscriptions WHERE user_id = ? AND subscription_json = ?').run(req.user.id, subscription_json);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to unsubscribe' });
+    }
+  });
+
+  // Background task to check for inactive users (every 12 hours)
+  const checkInactiveUsers = async () => {
+    try {
+      console.log('Checking for inactive users...');
+      // Find users who haven't been active for 2 days and haven't been notified recently
+      // For this demo, we just check last_activity > 2 days
+      const inactiveUsers = db.prepare(`
+        SELECT u.id, u.full_name, ps.subscription_json 
+        FROM users u
+        JOIN push_subscriptions ps ON u.id = ps.user_id
+        JOIN settings s ON u.id = s.user_id AND s.key = 'notifications_enabled' AND s.value = 'true'
+        WHERE u.last_activity < datetime('now', '-2 days')
+      `).all() as any[];
+
+      for (const user of inactiveUsers) {
+        const subscription = JSON.parse(user.subscription_json);
+        const payload = JSON.stringify({
+          title: 'e-Money nhớ bạn!',
+          body: `Chào ${user.full_name || 'bạn'}, đã 2 ngày rồi bạn chưa cập nhật chi tiêu. Hãy vào app ngay nhé!`,
+          url: '/'
+        });
+
+        try {
+          await webpush.sendNotification(subscription, payload);
+          console.log(`Notification sent to user ${user.id}`);
+        } catch (error: any) {
+          if (error.statusCode === 410 || error.statusCode === 404) {
+            // Subscription expired or invalid
+            db.prepare('DELETE FROM push_subscriptions WHERE subscription_json = ?').run(user.subscription_json);
+          } else {
+            console.error(`Failed to send notification to user ${user.id}`, error);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error in checkInactiveUsers task', error);
+    }
+  };
+
+  // Run every 12 hours
+  setInterval(checkInactiveUsers, 12 * 60 * 60 * 1000);
+  // Also run once on startup after a short delay
+  setTimeout(checkInactiveUsers, 10000);
 
   // Vite middleware for development
   if (process.env.NODE_ENV !== 'production') {

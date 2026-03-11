@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useFinanceViewModel } from '../../viewmodels/useFinanceViewModel';
 import { format, subMonths, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear, eachDayOfInterval, eachMonthOfInterval, isSameMonth, getDate, getMonth, getYear, subQuarters, subYears, startOfDay, endOfDay, startOfWeek, endOfWeek, subWeeks, subDays, differenceInDays } from 'date-fns';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid, AreaChart, Area, ComposedChart, Line } from 'recharts';
@@ -17,6 +17,13 @@ export default function ReportTab({ viewModel }: { viewModel: ReturnType<typeof 
 
   const language = getSetting('language', 'vi') as keyof typeof translations;
   const t = translations[language];
+
+  useEffect(() => {
+    if (timeFilter === 'custom') {
+      setCustomStart('');
+      setCustomEnd('');
+    }
+  }, [timeFilter]);
 
   // --- Date Logic ---
   const getDateRange = (filter: TimeFilter) => {
@@ -197,24 +204,44 @@ export default function ReportTab({ viewModel }: { viewModel: ReturnType<typeof 
         </div>
         
         {timeFilter === 'custom' && (
-          <div className="flex space-x-2 bg-gray-50 p-3 rounded-xl">
+          <div className="flex space-x-2 bg-gray-50 p-3 rounded-xl animate-in fade-in slide-in-from-top-2 duration-200">
             <div className="flex-1">
-              <label className="block text-xs text-gray-500 mb-1">{t.startDate}</label>
-              <input 
-                type="date" 
-                value={customStart}
-                onChange={(e) => setCustomStart(e.target.value)}
-                className="w-full text-sm border border-gray-200 rounded p-1"
-              />
+              <label className="block text-[10px] font-medium text-gray-400 uppercase tracking-wider mb-1">
+                {t.startDate}
+              </label>
+              <div className="relative">
+                <input 
+                  type="date" 
+                  value={customStart}
+                  onChange={(e) => {
+                    setCustomStart(e.target.value);
+                    if (customEnd && e.target.value > customEnd) {
+                      setCustomEnd('');
+                    }
+                  }}
+                  className={`date-input-full-picker w-full bg-white border border-gray-200 rounded-lg pl-3 pr-10 py-2 text-sm h-[38px] focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all ${!customStart ? 'text-transparent' : 'text-gray-800'}`}
+                />
+                <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
+                  <Calendar size={14} />
+                </div>
+              </div>
             </div>
             <div className="flex-1">
-              <label className="block text-xs text-gray-500 mb-1">{t.endDate}</label>
-              <input 
-                type="date" 
-                value={customEnd}
-                onChange={(e) => setCustomEnd(e.target.value)}
-                className="w-full text-sm border border-gray-200 rounded p-1"
-              />
+              <label className="block text-[10px] font-medium text-gray-400 uppercase tracking-wider mb-1">
+                {t.endDate}
+              </label>
+              <div className="relative">
+                <input 
+                  type="date" 
+                  value={customEnd}
+                  min={customStart}
+                  onChange={(e) => setCustomEnd(e.target.value)}
+                  className={`date-input-full-picker w-full bg-white border border-gray-200 rounded-lg pl-3 pr-10 py-2 text-sm h-[38px] focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all ${!customEnd ? 'text-transparent' : 'text-gray-800'}`}
+                />
+                <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
+                  <Calendar size={14} />
+                </div>
+              </div>
             </div>
           </div>
         )}

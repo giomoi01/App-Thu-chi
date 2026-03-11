@@ -18,6 +18,8 @@ export default function CategoryManager({ viewModel, onClose }: { viewModel: Ret
   const [newParentId, setNewParentId] = useState<number | null>(null);
   const [confirmDialog, setConfirmDialog] = useState<{ isOpen: boolean, message: string, onConfirm: () => void } | null>(null);
   const [alertDialog, setAlertDialog] = useState<{ isOpen: boolean, message: string } | null>(null);
+  const [displayLimit, setDisplayLimit] = useState(15);
+  const observerTarget = React.useRef<HTMLDivElement>(null);
 
   const language = getSetting('language', 'vi');
   const t = translations[language] || translations['vi'];
@@ -35,6 +37,32 @@ export default function CategoryManager({ viewModel, onClose }: { viewModel: Ret
   };
 
   const parentCategories = sortCategories(filteredCategories.filter(c => c.parent_id === null));
+  const displayedParents = parentCategories.slice(0, displayLimit);
+
+  React.useEffect(() => {
+    setDisplayLimit(15);
+  }, [activeTab]);
+
+  React.useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && displayLimit < parentCategories.length) {
+          setDisplayLimit(prev => prev + 15);
+        }
+      },
+      { threshold: 0.1, rootMargin: '100px' }
+    );
+
+    if (observerTarget.current) {
+      observer.observe(observerTarget.current);
+    }
+
+    return () => {
+      if (observerTarget.current) {
+        observer.unobserve(observerTarget.current);
+      }
+    };
+  }, [displayLimit, parentCategories.length]);
 
   const handleEdit = (category: Category) => {
     setEditingId(category.id);
@@ -147,7 +175,7 @@ export default function CategoryManager({ viewModel, onClose }: { viewModel: Ret
       </div>
 
       <main className="flex-1 overflow-y-auto p-4 space-y-4">
-        {parentCategories.map(parent => (
+        {displayedParents.map(parent => (
           <div key={parent.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
             <div className="bg-white p-3 border-b border-gray-100 font-bold text-gray-800 flex justify-between items-center">
               {editingId === parent.id ? (
@@ -184,8 +212,12 @@ export default function CategoryManager({ viewModel, onClose }: { viewModel: Ret
                     <span>{translateName(parent.name)}</span>
                   </div>
                   <div className="flex items-center gap-1">
-                    <button onClick={() => handleEdit(parent)} className="text-blue-500 p-1 hover:bg-blue-50 rounded-full"><Edit2 size={16} /></button>
-                    <button onClick={() => handleDelete(parent)} className="text-red-500 p-1 hover:bg-red-50 rounded-full"><Trash2 size={16} /></button>
+                    {!parent.is_default && (
+                      <>
+                        <button onClick={() => handleEdit(parent)} className="text-blue-500 p-1 hover:bg-blue-50 rounded-full"><Edit2 size={16} /></button>
+                        <button onClick={() => handleDelete(parent)} className="text-red-500 p-1 hover:bg-red-50 rounded-full"><Trash2 size={16} /></button>
+                      </>
+                    )}
                     <button 
                       onClick={() => { setShowAdd(true); setNewParentId(parent.id); }}
                       className="text-red-600 p-1 hover:bg-red-50 rounded-full ml-1"
@@ -233,8 +265,12 @@ export default function CategoryManager({ viewModel, onClose }: { viewModel: Ret
                         <span className="text-gray-700">{translateName(child.name)}</span>
                       </div>
                       <div className="flex gap-2">
-                        <button onClick={() => handleEdit(child)} className="text-blue-500 p-1 hover:bg-blue-50 rounded"><Edit2 size={16} /></button>
-                        <button onClick={() => handleDelete(child)} className="text-red-500 p-1 hover:bg-red-50 rounded"><Trash2 size={16} /></button>
+                        {!child.is_default && (
+                          <>
+                            <button onClick={() => handleEdit(child)} className="text-blue-500 p-1 hover:bg-blue-50 rounded"><Edit2 size={16} /></button>
+                            <button onClick={() => handleDelete(child)} className="text-red-500 p-1 hover:bg-red-50 rounded"><Trash2 size={16} /></button>
+                          </>
+                        )}
                       </div>
                     </>
                   )}
@@ -251,6 +287,16 @@ export default function CategoryManager({ viewModel, onClose }: { viewModel: Ret
           <Plus size={18} className="mr-2" />
           {t.addCatGroup}
         </button>
+
+        {/* Infinite Scroll Sentinel & Loading Spinner */}
+        {displayLimit < parentCategories.length && (
+          <div ref={observerTarget} className="py-6 flex justify-center items-center">
+            <div className="flex flex-col items-center space-y-2">
+              <div className="animate-spin rounded-full h-8 w-8 border-4 border-red-600 border-t-transparent"></div>
+              <span className="text-gray-400 text-xs font-medium">{t.loading || 'Đang tải thêm...'}</span>
+            </div>
+          </div>
+        )}
       </main>
 
       {showAdd && (

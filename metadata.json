@@ -1,5 +1,5 @@
 {
-  "name": "Thần Tài - Quản lý Tài chính",
+  "name": "e-Money - Quản lý Tài chính",
   "description": "Ứng dụng quản lý tài chính cá nhân với 5 tab: Tổng quan, Lịch sử, Thêm giao dịch, Ngân sách và Báo cáo.",
-  "requestFramePermissions": ["microphone", "camera"]
+  "requestFramePermissions": ["microphone", "camera", "notifications", "geolocation"]
 }

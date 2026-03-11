@@ -11,9 +11,9 @@ export default function SplashScreen() {
         className="flex flex-col items-center"
       >
         <div className="relative">
-          {/* Simple representation of God of Wealth / Gold Ingot */}
-          <div className="w-40 h-40 bg-yellow-400 rounded-full flex items-center justify-center border-4 border-yellow-200 shadow-[0_0_40px_rgba(250,204,21,0.6)]">
-            <Coins size={80} className="text-red-600" />
+          {/* Use the app icon for consistency */}
+          <div className="w-40 h-40 bg-white rounded-[40px] flex items-center justify-center shadow-[0_0_50px_rgba(255,215,0,0.5)] overflow-hidden border-8 border-yellow-400">
+            <img src="/favicon.svg" alt="e-Money" className="w-full h-full object-contain p-4" />
           </div>
           <motion.div 
             animate={{ y: [0, -12, 0] }} 
