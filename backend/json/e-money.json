@@ -1,0 +1,70 @@
+{
+	"info": {
+		"name": "e-Money API System",
+		"description": "Bộ API quản lý tài chính e-Money",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "1. Xác thực (Auth)",
+			"item": [
+				{
+					"name": "Đăng ký",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"full_name\": \"Nguyen Van A\",\n    \"email\": \"test@example.com\",\n    \"password\": \"123456\"\n}",
+							"options": { "raw": { "language": "json" } }
+						},
+						"url": "http://localhost:8000/api/auth/register"
+					}
+				},
+				{
+					"name": "Đăng nhập",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"test@example.com\",\n    \"password\": \"123456\"\n}",
+							"options": { "raw": { "language": "json" } }
+						},
+						"url": "http://localhost:8000/api/auth/login"
+					}
+				}
+			]
+		},
+		{
+			"name": "2. Giao dịch (Transactions)",
+			"item": [
+				{
+					"name": "Lấy danh sách",
+					"request": {
+						"method": "GET",
+						"header": [
+							{ "key": "Authorization", "value": "Bearer {{token}}", "type": "text" }
+						],
+						"url": "http://localhost:8000/api/transactions"
+					}
+				},
+				{
+					"name": "Tạo giao dịch mới",
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Authorization", "value": "Bearer {{token}}", "type": "text" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"type\": \"expense\",\n    \"amount\": 50000,\n    \"category_id\": 1,\n    \"account_id\": 1,\n    \"date\": \"2024-03-11\",\n    \"note\": \"Ăn trưa\"\n}",
+							"options": { "raw": { "language": "json" } }
+						},
+						"url": "http://localhost:8000/api/transactions"
+					}
+				}
+			]
+		}
+	]
+}

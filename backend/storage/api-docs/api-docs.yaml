@@ -1,0 +1,552 @@
+openapi: 3.0.0
+info:
+  title: 'e-Money API Documentation'
+  description: 'Hệ thống REST API quản lý tài chính cá nhân e-Money'
+  version: 1.0.0
+servers:
+  -
+    url: /api
+    description: 'Cổng API chính'
+paths:
+  /accounts:
+    get:
+      tags:
+        - 'Ví & Tài khoản'
+      summary: 'Lấy danh sách các loại ví'
+      operationId: 96daed062b209799ebd8c7e84dc97aed
+      responses:
+        200:
+          description: 'Dữ liệu danh sách ví'
+        401:
+          description: 'Chưa xác thực'
+      security:
+        -
+          sanctum: []
+    post:
+      tags:
+        - 'Ví & Tài khoản'
+      summary: 'Tạo tài khoản/ví mới'
+      operationId: b3234b57f04a5c23b5d70ac83678df8c
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              properties:
+                name:
+                  type: string
+                  example: 'Ví Tiền mặt'
+                icon:
+                  type: string
+                  example: Wallet
+                balance:
+                  type: number
+                  format: float
+                  example: 1000000
+                is_default:
+                  type: boolean
+                  example: false
+              type: object
+      responses:
+        201:
+          description: 'Đã tạo ví thành công'
+        422:
+          description: 'Dữ liệu không hợp lệ'
+      security:
+        -
+          sanctum: []
+  /auth/register:
+    post:
+      tags:
+        - 'Xác thực'
+      summary: 'Đăng ký tài khoản mới'
+      operationId: 08136088c4862c313b35d6518bab8d3a
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              properties:
+                full_name:
+                  type: string
+                  example: 'Nguyen Van A'
+                email:
+                  type: string
+                  example: user@example.com
+                password:
+                  type: string
+                  example: password123
+              type: object
+      responses:
+        210:
+          description: 'Đã đăng ký thành công'
+        422:
+          description: 'Dữ liệu không hợp lệ'
+  /auth/login:
+    post:
+      tags:
+        - 'Xác thực'
+      summary: 'Đăng nhập'
+      operationId: 99d66635c4992aeaa6aa44ff653d0563
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              properties:
+                email:
+                  type: string
+                  example: user@example.com
+                password:
+                  type: string
+                  example: password123
+              type: object
+      responses:
+        200:
+          description: 'Đăng nhập thành công và trả về Token'
+        401:
+          description: 'Thông tin đăng nhập không chính xác'
+  /auth/me:
+    get:
+      tags:
+        - 'Xác thực'
+      summary: 'Lấy profile người dùng hiện tại'
+      operationId: 7edae2cdbaafc10dff8c9c4198b320a2
+      responses:
+        200:
+          description: 'Thông tin người dùng'
+      security:
+        -
+          sanctum: []
+  /auth/logout:
+    post:
+      tags:
+        - 'Xác thực'
+      summary: 'Đăng xuất'
+      operationId: 6abf3b64a4bc7838d56346f05a5153af
+      responses:
+        200:
+          description: 'Đã đăng xuất thành công'
+      security:
+        -
+          sanctum: []
+  /budgets:
+    get:
+      tags:
+        - 'Ngân sách'
+      summary: 'Lấy danh sách thiết lập ngân sách'
+      operationId: 49a5c108bcc6c0f36d6721daf5ff8732
+      responses:
+        200:
+          description: 'Danh sách ngân sách'
+      security:
+        -
+          sanctum: []
+    post:
+      tags:
+        - 'Ngân sách'
+      summary: 'Thiết lập ngân sách chi tiêu'
+      operationId: 99b08fee5d3d4d75f33713e9343f0c91
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              properties:
+                category_id:
+                  type: integer
+                  example: 1
+                limit_amount:
+                  type: number
+                  format: float
+                  example: 5000000
+                month:
+                  type: string
+                  example: 2024-03
+              type: object
+      responses:
+        200:
+          description: 'Đã lưu thiết lập'
+        422:
+          description: 'Dữ liệu không hợp lệ'
+      security:
+        -
+          sanctum: []
+  '/budgets/{id}':
+    delete:
+      tags:
+        - 'Ngân sách'
+      summary: 'Xóa thiết lập ngân sách'
+      operationId: 46c1727c8456d5ae253255b278b71ffd
+      parameters:
+        -
+          name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        200:
+          description: 'Đã xóa'
+        404:
+          description: 'Không tìm thấy'
+      security:
+        -
+          sanctum: []
+  /categories:
+    get:
+      tags:
+        - 'Danh mục'
+      summary: 'Lấy danh sách danh mục (gồm mặc định và cá nhân)'
+      operationId: b1b247b2b491b0491c3c728dc33f23f0
+      responses:
+        200:
+          description: 'Dữ liệu danh mục'
+      security:
+        -
+          sanctum: []
+    post:
+      tags:
+        - 'Danh mục'
+      summary: 'Tạo danh mục mới'
+      operationId: c86cd7a85ad06a4fe905bfab62146952
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              properties:
+                type:
+                  type: string
+                  example: expense
+                name:
+                  type: string
+                  example: 'Cà phê'
+                icon:
+                  type: string
+                  example: Coffee
+                parent_id:
+                  type: integer
+                  example: null
+              type: object
+      responses:
+        201:
+          description: 'Đã tạo thành công'
+        422:
+          description: 'Dữ liệu sai định dạng'
+      security:
+        -
+          sanctum: []
+  '/categories/{id}':
+    put:
+      tags:
+        - 'Danh mục'
+      summary: 'Cập nhật danh mục'
+      operationId: b648463d94e0caf7b8d842a1008789b2
+      parameters:
+        -
+          name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              properties:
+                name:
+                  type: string
+                  example: 'Cà phê sáng'
+                icon:
+                  type: string
+                  example: Coffee
+              type: object
+      responses:
+        200:
+          description: 'Đã cập nhật'
+        404:
+          description: 'Không tìm thấy hoặc không có quyền'
+      security:
+        -
+          sanctum: []
+    delete:
+      tags:
+        - 'Danh mục'
+      summary: 'Xóa danh mục'
+      operationId: 491dfe5b6b58b480181690ede6550e44
+      parameters:
+        -
+          name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        200:
+          description: 'Đã xóa'
+        404:
+          description: 'Không tìm thấy'
+      security:
+        -
+          sanctum: []
+  /goals:
+    get:
+      tags:
+        - 'Mục tiêu'
+      summary: 'Danh sách mục tiêu tiết kiệm'
+      operationId: ade9bdb09d2491dd10ebc655489f5688
+      responses:
+        200:
+          description: 'Danh sách mục tiêu'
+      security:
+        -
+          sanctum: []
+    post:
+      tags:
+        - 'Mục tiêu'
+      summary: 'Tạo mục tiêu tiết kiệm mới'
+      operationId: 4b3554baf009c6109ae16d72cdda0434
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              properties:
+                name:
+                  type: string
+                  example: 'Mua xe mới'
+                target_amount:
+                  type: number
+                  example: 50000000
+                deadline:
+                  type: string
+                  format: date
+                  example: '2024-12-31'
+              type: object
+      responses:
+        201:
+          description: 'Đã tạo xong'
+        422:
+          description: 'Dữ liệu không hợp lệ'
+      security:
+        -
+          sanctum: []
+  '/goals/{id}/amount':
+    patch:
+      tags:
+        - 'Mục tiêu'
+      summary: 'Cập nhật tiến độ tích lũy cho mục tiêu'
+      operationId: d8516170b6f0fba141008626ad820b56
+      parameters:
+        -
+          name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              properties:
+                current_amount:
+                  type: number
+                  example: 5000000
+              type: object
+      responses:
+        200:
+          description: 'Đã cập nhật'
+        404:
+          description: 'Không tìm thấy'
+      security:
+        -
+          sanctum: []
+  '/goals/{id}':
+    delete:
+      tags:
+        - 'Mục tiêu'
+      summary: 'Xóa mục tiêu'
+      operationId: 6345c58cfdd94d7b8fae3e8b9c7d33cd
+      parameters:
+        -
+          name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        200:
+          description: 'Đã xóa'
+        404:
+          description: 'Không tìm thấy'
+      security:
+        -
+          sanctum: []
+  /push-subscriptions:
+    post:
+      tags:
+        - 'Thông báo (Push)'
+      summary: 'Đăng ký nhận thông báo đẩy'
+      operationId: f166a083b162fab0bf528ef5036686de
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              properties:
+                subscription_json:
+                  type: string
+                  example: '{"endpoint":"...","keys":{...}}'
+              type: object
+      responses:
+        200:
+          description: 'Đã đăng ký thành công'
+      security:
+        -
+          sanctum: []
+    delete:
+      tags:
+        - 'Thông báo (Push)'
+      summary: 'Hủy đăng ký nhận thông báo đẩy'
+      operationId: 5ddc80c77bd0b2a47f9f35e32220c5a8
+      responses:
+        200:
+          description: 'Đã hủy đăng ký'
+      security:
+        -
+          sanctum: []
+  /settings:
+    get:
+      tags:
+        - 'Cài đặt'
+      summary: 'Lấy toàn bộ cấu hình cài đặt'
+      operationId: f810df75bcb1059765552b706464d2ba
+      responses:
+        200:
+          description: 'Danh sách cài đặt'
+      security:
+        -
+          sanctum: []
+    post:
+      tags:
+        - 'Cài đặt'
+      summary: 'Lưu hoặc cập nhật cài đặt'
+      operationId: ec8a0307cc9b1f750ae83013637f3027
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              properties:
+                settings:
+                  type: object
+                  example:
+                    currency: VND
+                    language: vi
+                    dark_mode: true
+              type: object
+      responses:
+        200:
+          description: 'Đã lưu'
+        422:
+          description: 'Dữ liệu không hợp lệ'
+      security:
+        -
+          sanctum: []
+  /sync/push:
+    post:
+      tags:
+        - 'Đồng bộ (Sync)'
+      summary: 'Đồng bộ dữ liệu từ Client lên Server'
+      operationId: 0191aad52b87d7d66e5127749e9643eb
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              properties:
+                accounts:
+                  type: array
+                  items:
+                    type: object
+                categories:
+                  type: array
+                  items:
+                    type: object
+                transactions:
+                  type: array
+                  items:
+                    type: object
+              type: object
+      responses:
+        200:
+          description: 'Đồng bộ thành công'
+      security:
+        -
+          sanctum: []
+  /sync/pull:
+    get:
+      tags:
+        - 'Đồng bộ (Sync)'
+      summary: 'Lấy toàn bộ dữ liệu từ Server về Client'
+      operationId: 3e1c43567263601b47c7473adcfea398
+      responses:
+        200:
+          description: 'Dữ liệu toàn bộ các bảng'
+      security:
+        -
+          sanctum: []
+  /transactions:
+    get:
+      tags:
+        - 'Giao dịch'
+      summary: 'Lấy lịch sử giao dịch'
+      description: 'Danh sách giao dịch.'
+      operationId: 985f8d6a4ee65fbeaf1513cb4f53a3e8
+      responses:
+        200:
+          description: 'Danh sách giao dịch'
+      security:
+        -
+          sanctum: []
+components:
+  securitySchemes:
+    sanctum:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: 'Chỉ cần dán mã Token vào đây (không cần gõ chữ Bearer)'
+tags:
+  -
+    name: 'Ví & Tài khoản'
+    description: 'Ví & Tài khoản'
+  -
+    name: 'Xác thực'
+    description: 'Xác thực'
+  -
+    name: 'Ngân sách'
+    description: 'Ngân sách'
+  -
+    name: 'Danh mục'
+    description: 'Danh mục'
+  -
+    name: 'Mục tiêu'
+    description: 'Mục tiêu'
+  -
+    name: 'Thông báo (Push)'
+    description: 'Thông báo (Push)'
+  -
+    name: 'Cài đặt'
+    description: 'Cài đặt'
+  -
+    name: 'Đồng bộ (Sync)'
+    description: 'Đồng bộ (Sync)'
+  -
+    name: 'Giao dịch'
+    description: 'Giao dịch'
+security:
+  -
+    sanctum: []
